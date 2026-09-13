@@ -56,6 +56,10 @@ $script:AppRemovalFailedApps = @()
 # the apply phase can restore from it without re-reading the Backups folder.
 # Outcome is one of: None, RolledBack, RollbackFailed, Skipped.
 $script:RunRegistryBackupPath = $null
+# Full-module rollback: snapshot of non-registry module state and the module features
+# that actually applied, so a failed run reverts services/firewall/HOSTS/tasks/SMB1 too.
+$script:RunModuleBackupPath = $null
+$script:AppliedModuleFeatures = @()
 $script:RunRollbackOutcome = 'None'
 $script:RunRollbackReason = $null
 
