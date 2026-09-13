@@ -4,6 +4,13 @@ Document all notable Winnow changes in this file. Releases before 4.0.0 were pub
 
 Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Full-module rollback (Scope A). Automatic rollback now also reverts the reversible non-registry state that module features change - service start types, Winnow's telemetry firewall rules and HOSTS block, disabled scheduled tasks, and the SMB1 optional feature - captured before the apply and restored on failure alongside the registry backup. One-way operations (Recall component removal, app removal, Edge removal) and the modules' imperative registry writes are reported as not restored rather than silently left in place.
+- Reject structurally inconsistent import configurations before applying them (`Test-ConfigConsistency`), wired into both the CLI and GUI import paths.
+
 ## [4.0.1] - 2026-09-13
 
 ### Fixed

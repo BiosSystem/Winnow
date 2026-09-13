@@ -312,6 +312,7 @@ if (-not $script:WingetInstalled -and -not $Silent) {
 . "$PSScriptRoot/Scripts/Features/BackupRegistryFeatureSelection.ps1"
 . "$PSScriptRoot/Scripts/Features/BackupRegistrySnapshotCapture.ps1"
 . "$PSScriptRoot/Scripts/Features/BackupRegistryState.ps1"
+. "$PSScriptRoot/Scripts/Features/BackupModuleState.ps1"
 . "$PSScriptRoot/Scripts/Features/RegistryBackupValidation.ps1"
 . "$PSScriptRoot/Scripts/Features/RestoreRegistryApplyState.ps1"
 . "$PSScriptRoot/Scripts/Features/RestoreRegistryBackup.ps1"

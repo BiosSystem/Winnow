@@ -321,6 +321,12 @@ function Invoke-ApplyFeatures {
         }
 
         Invoke-WinnowFeature -FeatureId $featureId
+
+        # Record module features as they apply so rollback reverts only what ran.
+        if ($featureId -in $script:ModuleRollbackFeatureIds -and $script:AppliedModuleFeatures -notcontains $featureId) {
+            $script:AppliedModuleFeatures += $featureId
+        }
+
         $step++
     }
 }
@@ -432,6 +438,10 @@ function Invoke-AllChanges {
         }
     }
 
+    # Module features change non-registry state (services, firewall, HOSTS, tasks, SMB1) that the
+    # registry backup does not cover. Snapshot it so a failed apply can revert it too.
+    $hasModuleFeatures = @($applyIds | Where-Object { $_ -in $script:ModuleRollbackFeatureIds }).Count -gt 0
+
     # ---- Calculate total progress steps ----
     $totalSteps = $applyIds.Count + $undoIds.Count
     if ($needsBackup -and -not $script:Params.ContainsKey('SkipRegistryBackup')) { $totalSteps++ }
@@ -476,6 +486,19 @@ function Invoke-AllChanges {
             catch {
                 throw "Registry backup failed before applying changes. $($_.Exception.Message)"
             }
+        }
+    }
+
+    # Module-state snapshot for full-module rollback: services, firewall, HOSTS, scheduled tasks
+    # and SMB1. Runs even when there is no registry backup, since a module-only run still needs its
+    # non-registry changes reverted on failure. Gated by -SkipRegistryBackup, which turns off
+    # automatic rollback entirely.
+    if ($hasModuleFeatures -and -not $script:Params.ContainsKey('SkipRegistryBackup') -and -not $script:Params.ContainsKey('WhatIf')) {
+        try {
+            $script:RunModuleBackupPath = New-ModuleStateSnapshot -ApplyIds $applyIds
+        }
+        catch {
+            Write-Host "  [WARN] Could not capture module-state snapshot: $($_.Exception.Message)" -ForegroundColor Yellow
         }
     }
 
@@ -546,33 +569,62 @@ function Invoke-AllChanges {
             Write-Host ""
             Write-Host "  [WARN] $($script:RunRollbackReason). Rollback skipped because -NoAutoRollback was passed." -ForegroundColor Yellow
         }
-        elseif ([string]::IsNullOrWhiteSpace($script:RunRegistryBackupPath)) {
-            $script:RunRollbackOutcome = 'Skipped'
-            Write-Host ""
-            Write-Host "  [WARN] $($script:RunRollbackReason), but no registry backup is available to roll back to." -ForegroundColor Yellow
-        }
         else {
             Write-Host ""
-            Write-Host "> $($script:RunRollbackReason). Rolling back registry changes..." -ForegroundColor Yellow
-            try {
-                $rollbackBackup = Load-RegistryBackupFromFile -FilePath $script:RunRegistryBackupPath
-                $rollbackResult = Restore-RegistryBackupState -Backup $rollbackBackup
 
-                if ($rollbackResult -and $rollbackResult.Result) {
-                    $script:RunRollbackOutcome = 'RolledBack'
-                    Write-Host "Registry changes were rolled back." -ForegroundColor Yellow
+            # Registry rollback. $registryOutcome: $true restored, $false failed, $null nothing to do.
+            $registryOutcome = $null
+            if (-not [string]::IsNullOrWhiteSpace($script:RunRegistryBackupPath)) {
+                Write-Host "> $($script:RunRollbackReason). Rolling back registry changes..." -ForegroundColor Yellow
+                try {
+                    $rollbackBackup = Load-RegistryBackupFromFile -FilePath $script:RunRegistryBackupPath
+                    $rollbackResult = Restore-RegistryBackupState -Backup $rollbackBackup
+                    if ($rollbackResult -and $rollbackResult.Result) {
+                        $registryOutcome = $true
+                        Write-Host "Registry changes were rolled back." -ForegroundColor Yellow
+                    }
+                    else {
+                        $registryOutcome = $false
+                        Write-Host "Registry rollback did not complete. Restore manually from: $($script:RunRegistryBackupPath)" -ForegroundColor Red
+                    }
                 }
-                else {
-                    $script:RunRollbackOutcome = 'RollbackFailed'
-                    Write-Host "Rollback did not complete. The system may be partially changed." -ForegroundColor Red
-                    Write-Host "Backup file: $($script:RunRegistryBackupPath)" -ForegroundColor Red
+                catch {
+                    $registryOutcome = $false
+                    Write-Host "Registry rollback failed: $($_.Exception.Message). Restore manually from: $($script:RunRegistryBackupPath)" -ForegroundColor Red
                 }
             }
-            catch {
-                # Name the backup file so the restore can be finished by hand.
+
+            # Module rollback: services, firewall, HOSTS, scheduled tasks, SMB1.
+            $moduleOutcome = $null
+            if (-not [string]::IsNullOrWhiteSpace($script:RunModuleBackupPath) -and @($script:AppliedModuleFeatures).Count -gt 0) {
+                Write-Host "> Rolling back module changes (services, firewall, tasks)..." -ForegroundColor Yellow
+                $moduleResult = Restore-ModuleState -SnapshotPath $script:RunModuleBackupPath -AppliedFeatures $script:AppliedModuleFeatures
+                if (@($moduleResult.Reverted).Count -gt 0) {
+                    Write-Host "Reverted: $($moduleResult.Reverted -join ', ')." -ForegroundColor Yellow
+                }
+                if (@($moduleResult.Uncovered).Count -gt 0) {
+                    Write-Host "Not restored (needs the original image or a manual step): $($moduleResult.Uncovered -join '; ')." -ForegroundColor Yellow
+                }
+                if (@($moduleResult.Failed).Count -eq 0) {
+                    $moduleOutcome = $true
+                }
+                else {
+                    $moduleOutcome = $false
+                    Write-Host "Some module changes could not be reverted: $($moduleResult.Failed -join '; ')" -ForegroundColor Red
+                }
+            }
+
+            # Combined outcome drives the exit code (3 rolled back, 4 rollback failed, 1 skipped).
+            if ($registryOutcome -eq $false -or $moduleOutcome -eq $false) {
                 $script:RunRollbackOutcome = 'RollbackFailed'
-                Write-Host "Rollback failed: $($_.Exception.Message)" -ForegroundColor Red
-                Write-Host "Restore manually from: $($script:RunRegistryBackupPath)" -ForegroundColor Red
+                Write-Host "Rollback did not fully complete. The system may be partially changed." -ForegroundColor Red
+            }
+            elseif ($registryOutcome -eq $true -or $moduleOutcome -eq $true) {
+                $script:RunRollbackOutcome = 'RolledBack'
+            }
+            else {
+                $script:RunRollbackOutcome = 'Skipped'
+                Write-Host "  [WARN] $($script:RunRollbackReason), but no backup is available to roll back to." -ForegroundColor Yellow
             }
             Write-Host ""
         }
