@@ -1,3 +1,14 @@
+## [v4.1.0] - 2026-09-13
+### Artifacts
+- **Release Package**: Winnow-v4.1.0.zip
+- **Standalone**: Winnow-Standalone.ps1
+- Both built and published by the release workflow on tag push. Checksums are on the release page.
+### Added
+- Full-module rollback (Scope A): a failed apply now also reverts service start types, Winnow's telemetry firewall rules and HOSTS block, disabled scheduled tasks, and the SMB1 optional feature, alongside the registry backup. One-way ops (Recall/Appx/Edge removal) and imperative registry writes are reported as not restored, not faked.
+- `Test-ConfigConsistency`: import configurations are validated for structure and scope/user consistency before anything is applied, in both the CLI and GUI import paths.
+### Known limitation
+- The mutating end-to-end rollback path (registry + module) is unit-tested with mocks but has not been run in Windows Sandbox on real hardware.
+
 ## [v4.0.1] - 2026-09-13
 ### Artifacts
 - **Release Package**: Winnow-v4.0.1.zip
