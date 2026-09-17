@@ -192,4 +192,28 @@ function Enable-ExtendedAIPurgeRevert {
     Write-Host ""
 }
 
+function Get-ExtendedAIPurgeRegistryTargets {
+    # The registry values Disable-ExtendedAIPurge writes, as data, for the rollback
+    # snapshot. Scheduled tasks (Scope A) and the Recall component removal (one-way)
+    # are handled elsewhere and are not listed here.
+    @(
+        @{ Path = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Mobility'; Name = 'PhoneLinkEnabled' }
+        @{ Path = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Mobility'; Name = 'OptedIn' }
+        @{ Path = 'HKLM:\SOFTWARE\Policies\Microsoft\WindowsInkWorkspace'; Name = 'AllowWindowsInkWorkspace' }
+        @{ Path = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\OneDrive'; Name = 'DisableFileSyncNGSC' }
+        @{ Path = 'HKCU:\Software\Microsoft\OneDrive'; Name = 'DisablePersonalSync' }
+        @{ Path = 'HKCU:\Software\Microsoft\Clipboard'; Name = 'EnableCloudClipboard' }
+        @{ Path = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System'; Name = 'AllowCrossDeviceClipboard' }
+        @{ Path = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsAI'; Name = 'DisableAIDataAnalysis' }
+        @{ Path = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsAI'; Name = 'AllowRecallEnablement' }
+        @{ Path = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Photos'; Name = 'DisableGenerativeFill' }
+        @{ Path = 'HKCU:\Software\Microsoft\Clipboard'; Name = 'EnableSuggestedClipboardActions' }
+        @{ Path = 'HKLM:\SOFTWARE\Policies\Microsoft\Office\16.0\Common'; Name = 'PreventProductInstall' }
+        @{ Path = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot'; Name = 'TurnOffWindowsCopilot' }
+        @{ Path = 'HKLM:\SOFTWARE\Policies\Microsoft\office\16.0\outlook\options\mail'; Name = 'DisableCopilot' }
+        @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Services\UIFlowService'; Name = 'Start' }
+        @{ Path = 'HKCU:\Software\Microsoft\Narrator\NoRoam'; Name = 'OnlineVoicesEnabled' }
+    )
+}
+
 

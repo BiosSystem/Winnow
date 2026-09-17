@@ -130,3 +130,27 @@ function Disable-GamingMode {
     Write-Host ""
 }
 
+function Get-GamingModeRegistryTargets {
+    # The registry values Enable-GamingMode writes, as data, for the rollback
+    # snapshot. The power plan change (powercfg) is not registry and stays uncovered.
+    $targets = @(
+        @{ Path = 'HKCU:\Control Panel\Mouse'; Name = 'MouseSpeed' }
+        @{ Path = 'HKCU:\Control Panel\Mouse'; Name = 'MouseThreshold1' }
+        @{ Path = 'HKCU:\Control Panel\Mouse'; Name = 'MouseThreshold2' }
+        @{ Path = 'HKCU:\Control Panel\Accessibility\StickyKeys'; Name = 'Flags' }
+        @{ Path = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\GameDVR'; Name = 'AppCaptureEnabled' }
+        @{ Path = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\GameDVR'; Name = 'AllowGameDVR' }
+        @{ Path = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Serialize'; Name = 'StartupDelayInMSec' }
+        @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers'; Name = 'HwSchMode' }
+        @{ Path = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Schedule\Maintenance'; Name = 'MaintenanceDisabled' }
+    )
+    # Nagle's algorithm is disabled per network interface, so the target set depends
+    # on the interfaces present at capture time.
+    $interfaces = @(Get-ChildItem 'HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces' -ErrorAction SilentlyContinue)
+    foreach ($interface in $interfaces) {
+        $targets += @{ Path = $interface.PSPath; Name = 'TcpAckFrequency' }
+        $targets += @{ Path = $interface.PSPath; Name = 'TCPNoDelay' }
+    }
+    return $targets
+}
+

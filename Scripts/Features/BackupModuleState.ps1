@@ -7,11 +7,12 @@
     (DisableTelemetryServices, EnableFirewallTelemetryBlock, EnableSecurityHardening,
     EnableExtendedAIPurge, DisableTelemetry's scheduled-task side effect) change service state,
     firewall rules, the HOSTS file, scheduled tasks, and the SMB1 optional feature imperatively.
-    This is Scope A of full-module rollback: the cleanly-reversible types. It does NOT cover the
-    imperative registry writes those modules also make (Scope B), and it cannot restore one-way
-    operations (Recall component removal, Appx removal, Edge removal) — those are reported, never
-    faked. The extended CLI switches (competitive gaming, etc.) run only after a clean apply and so
-    never need rollback.
+    Scope A covers the cleanly-reversible non-registry types above. Scope B additionally captures and
+    restores the imperative registry writes SecurityHardening, ExtendedAIPurge, and GamingMode make,
+    each value snapshotted with its type before apply and put back (or removed) on rollback. It still
+    cannot restore one-way operations (Recall component removal, Appx removal, Edge removal) or the
+    powercfg power-plan change — those are reported, never faked. The extended CLI switches
+    (competitive gaming, etc.) run only after a clean apply and so never need rollback.
     Created by Bios-System | https://github.com/BiosSystem/Winnow
 #>
 
@@ -26,6 +27,15 @@ $script:ModuleRollbackFeatureIds = @(
     'EnableExtendedAIPurge',
     'EnableGamingMode'
 )
+
+# Scope B: module features whose imperative registry writes are captured and restored. Each maps to
+# the function that declares the exact (Path, Name) targets the module writes, so the snapshot never
+# drifts from the apply. Modules without registry writes (telemetry service/task/firewall) are not here.
+$script:ModuleRegistryTargetProviders = @{
+    'EnableSecurityHardening' = 'Get-SecurityHardeningRegistryTargets'
+    'EnableExtendedAIPurge'   = 'Get-ExtendedAIPurgeRegistryTargets'
+    'EnableGamingMode'        = 'Get-GamingModeRegistryTargets'
+}
 
 <#
     .SYNOPSIS
@@ -46,10 +56,11 @@ function New-ModuleStateSnapshot {
     }
 
     $snapshot = [ordered]@{
-        CreatedAt = (Get-Date).ToString('o')
-        Services  = @()
-        Tasks     = @()
-        Smb1State = $null
+        CreatedAt      = (Get-Date).ToString('o')
+        Services       = @()
+        Tasks          = @()
+        Smb1State      = $null
+        RegistryValues = @()
     }
 
     # Services: capture the current StartType (and whether running) so restore returns the exact
@@ -91,7 +102,22 @@ function New-ModuleStateSnapshot {
         catch { }
     }
 
-    if ($snapshot.Services.Count -eq 0 -and $snapshot.Tasks.Count -eq 0 -and $null -eq $snapshot.Smb1State) {
+    # Scope B: capture the current value and type of every registry target each applying module
+    # writes, so restore returns the exact prior state (or removes a value that did not exist).
+    foreach ($featureId in $inScope) {
+        $providerName = $script:ModuleRegistryTargetProviders[$featureId]
+        if ([string]::IsNullOrWhiteSpace($providerName)) { continue }
+        if (-not (Get-Command $providerName -ErrorAction SilentlyContinue)) { continue }
+        try {
+            foreach ($target in @(& $providerName)) {
+                if ([string]::IsNullOrWhiteSpace($target.Path) -or [string]::IsNullOrWhiteSpace($target.Name)) { continue }
+                $snapshot.RegistryValues += Get-ModuleRegistryValueSnapshot -Path $target.Path -Name $target.Name
+            }
+        }
+        catch { }
+    }
+
+    if ($snapshot.Services.Count -eq 0 -and $snapshot.Tasks.Count -eq 0 -and $null -eq $snapshot.Smb1State -and @($snapshot.RegistryValues).Count -eq 0) {
         # Nothing capturable (e.g. only firewall/HOSTS, which restore removes without a snapshot).
         # Still write a marker file so restore knows a module run happened.
         $snapshot.Marker = $true
@@ -106,6 +132,38 @@ function New-ModuleStateSnapshot {
 
     Write-Host "Module state snapshot created: $backupFilePath"
     return $backupFilePath
+}
+
+# Reads the current value and type of one registry target, or records that it does not exist, so
+# restore can put back exactly what was there (or remove a value the module created).
+function Get-ModuleRegistryValueSnapshot {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path,
+        [Parameter(Mandatory)]
+        [string]$Name
+    )
+
+    $existed = $false
+    $value = $null
+    $kind = $null
+    try {
+        $key = Get-Item -LiteralPath $Path -ErrorAction Stop
+        if (@($key.GetValueNames()) -contains $Name) {
+            $existed = $true
+            $value = $key.GetValue($Name)
+            $kind = "$($key.GetValueKind($Name))"
+        }
+    }
+    catch { }
+
+    return [ordered]@{
+        Path    = $Path
+        Name    = $Name
+        Existed = $existed
+        Value   = $value
+        Kind    = $kind
+    }
 }
 
 # Deletes the inbound port-block firewall rules SecurityHardening adds. Wrapped so it can be
@@ -189,16 +247,46 @@ function Restore-ModuleState {
             catch { $result.Failed += "SMB1 re-enable: $($_.Exception.Message)" }
         }
         $result.Reverted += 'security firewall and SMB1'
-        $result.Uncovered += 'SecurityHardening registry hardening (RDP policy, TLS, AutoRun, WSH)'
     }
 
-    # GamingMode changes (power plan + imperative registry) are Scope B.
-    if ('EnableGamingMode' -in $applied) {
-        $result.Uncovered += 'GamingMode power plan and registry tweaks'
+    # Scope B: restore each captured module registry value. A value that existed is written back with
+    # its original type; one that did not exist is removed. Restoring all captured targets is safe even
+    # for a module that did not run, because its targets were captured before apply and are unchanged.
+    $regList = @($snapshot.RegistryValues | Where-Object { $_ })
+    $regModulesApplied = @($applied | Where-Object { $script:ModuleRegistryTargetProviders.ContainsKey($_) })
+    if ($regList.Count -gt 0 -and $regModulesApplied.Count -gt 0) {
+        $ok = $true
+        foreach ($entry in $regList) {
+            try {
+                if ($entry.Existed) {
+                    if (-not (Test-Path -LiteralPath $entry.Path)) {
+                        New-Item -Path $entry.Path -Force | Out-Null
+                    }
+                    if ([string]::IsNullOrWhiteSpace([string]$entry.Kind)) {
+                        Set-ItemProperty -LiteralPath $entry.Path -Name $entry.Name -Value $entry.Value -Force -ErrorAction Stop
+                    }
+                    else {
+                        Set-ItemProperty -LiteralPath $entry.Path -Name $entry.Name -Value $entry.Value -Type $entry.Kind -Force -ErrorAction Stop
+                    }
+                }
+                elseif (Test-Path -LiteralPath $entry.Path) {
+                    Remove-ItemProperty -LiteralPath $entry.Path -Name $entry.Name -Force -ErrorAction SilentlyContinue
+                }
+            }
+            catch {
+                $ok = $false
+                $result.Failed += "registry $($entry.Path)\$($entry.Name): $($_.Exception.Message)"
+            }
+        }
+        if ($ok) { $result.Reverted += 'module registry settings' }
     }
-    # ExtendedAIPurge one-way and registry parts.
+
+    # What is still not restorable, after Scope B covers the registry writes.
+    if ('EnableGamingMode' -in $applied) {
+        $result.Uncovered += 'GamingMode power plan (powercfg)'
+    }
     if ('EnableExtendedAIPurge' -in $applied) {
-        $result.Uncovered += 'ExtendedAIPurge registry policies and Recall component removal (one-way)'
+        $result.Uncovered += 'ExtendedAIPurge Recall component removal (one-way)'
     }
 
     return $result

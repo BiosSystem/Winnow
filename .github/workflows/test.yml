@@ -128,6 +128,18 @@ jobs:
             exit 1
           }
 
+      - name: Run module rollback tests
+        shell: pwsh
+        run: |
+          $result = Invoke-Pester -Path @(
+            "Tests/Unit/Test-ModuleRollback.ps1",
+            "Tests/Unit/Test-ConfigConsistency.ps1"
+          ) -Output Detailed -PassThru
+          if ($result.FailedCount -gt 0) {
+            Write-Error "$($result.FailedCount) module rollback or config consistency test(s) failed"
+            exit 1
+          }
+
       - name: Run integration tests
         shell: pwsh
         run: |
