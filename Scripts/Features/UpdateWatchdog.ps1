@@ -83,6 +83,19 @@ function Invoke-InstallUpdateWatchdog {
         Set-ItemProperty -LiteralPath $regPath -Name 'SchemaVersion' -Value $schemaVersion -Type DWord -Force
         Set-ItemProperty -LiteralPath $regPath -Name 'InstalledUtc' -Value ((Get-Date).ToUniversalTime().ToString('o')) -Type String -Force
 
+        # Register a Windows event log source so the payload can record integrity
+        # failures and corrected drift centrally, not only in its text log. This
+        # needs admin, which the installer already has; if it fails the payload
+        # falls back to the text log alone.
+        try {
+            if (-not [System.Diagnostics.EventLog]::SourceExists('Winnow')) {
+                New-EventLog -LogName Application -Source 'Winnow' -ErrorAction Stop
+            }
+        }
+        catch {
+            Write-Host "  [WARN] Could not register the Winnow event source; the watchdog will log to its text file only." -ForegroundColor Yellow
+        }
+
         # Remove any prior task before re-registering.
         $existingTask = Get-ScheduledTask -TaskName $taskName -TaskPath $taskPath -ErrorAction SilentlyContinue
         if ($existingTask) {

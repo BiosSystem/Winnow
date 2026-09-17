@@ -165,6 +165,25 @@ Describe 'Winnow update watchdog enforcement' {
     }
 }
 
+Describe 'Winnow update watchdog event logging' {
+    It 'writes to the event log when the source is registered' {
+        Mock -CommandName Test-WinnowWatchdogEventSource -MockWith { $true }
+        Mock -CommandName Write-EventLog -MockWith { }
+
+        Write-WinnowWatchdogEvent -Message 'integrity failed' -EntryType Error -EventId 2000
+
+        Should -Invoke -CommandName Write-EventLog -Times 1 -Exactly
+    }
+
+    It 'stays silent and does not throw when the source is missing' {
+        Mock -CommandName Test-WinnowWatchdogEventSource -MockWith { $false }
+        Mock -CommandName Write-EventLog -MockWith { }
+
+        { Write-WinnowWatchdogEvent -Message 'drift corrected' -EntryType Warning } | Should -Not -Throw
+        Should -Invoke -CommandName Write-EventLog -Times 0 -Exactly
+    }
+}
+
 Describe 'Winnow update watchdog health' {
     It 'reports healthy when installed, intact, and locked down' {
         Mock -CommandName Get-ScheduledTask -MockWith { [PSCustomObject]@{ TaskName = 'Winnow_UpdateWatchdog' } }
