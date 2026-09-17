@@ -26,6 +26,42 @@ function Get-WinnowTelemetryDomains {
     )
 }
 
+function New-WinnowTelemetryHostsContent {
+    # Compose the hosts file text with a single Winnow block that sinkholes every
+    # telemetry domain to 0.0.0.0. Any previous Winnow block is stripped first, so
+    # re-applying is idempotent and never stacks duplicate blocks. Pure string work
+    # so it can be unit tested without touching the real hosts file.
+    param(
+        [AllowNull()]
+        [AllowEmptyString()]
+        [string]$CurrentHosts,
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [string[]]$Domains
+    )
+
+    $hostsMarkerStart = '# Winnow-TelemetryBlock-Start'
+    $hostsMarkerEnd = '# Winnow-TelemetryBlock-End'
+
+    if ($null -eq $CurrentHosts) { $CurrentHosts = '' }
+
+    # Strip any previous Winnow block, then trim trailing blank lines it left behind.
+    $stripped = $CurrentHosts -replace "(?s)$hostsMarkerStart.*?$hostsMarkerEnd`r?`n?", ''
+    $stripped = $stripped -replace "(\r?\n)+$", ''
+
+    $entries = @($Domains | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object { "0.0.0.0 $_" })
+    if ($entries.Count -eq 0) {
+        return $stripped
+    }
+
+    $block = "$hostsMarkerStart`r`n" + ($entries -join "`r`n") + "`r`n$hostsMarkerEnd"
+    if ([string]::IsNullOrWhiteSpace($stripped)) {
+        return $block + "`r`n"
+    }
+
+    return $stripped + "`r`n`r`n" + $block + "`r`n"
+}
+
 function Invoke-BlockTelemetryFirewall {
     param (
         [switch]$WhatIf
@@ -34,33 +70,32 @@ function Invoke-BlockTelemetryFirewall {
     $telemetryDomains = @(Get-WinnowTelemetryDomains)
 
     $hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
-    $hostsMarkerStart = "# Winnow-TelemetryBlock-Start"
-    $hostsMarkerEnd   = "# Winnow-TelemetryBlock-End"
 
     Write-Host ""
-    Write-Host "[*] Blocking telemetry endpoints via Windows Defender Firewall + HOSTS file..." -ForegroundColor Cyan
+    Write-Host "[*] Blocking telemetry endpoints via HOSTS sinkhole + Windows Defender Firewall..." -ForegroundColor Cyan
 
     if ($WhatIf) {
-        Write-Host "  [WhatIf] Would create outbound firewall rules and HOSTS entries for:" -ForegroundColor Yellow
+        Write-Host "  [WhatIf] Would sinkhole these domains in HOSTS and add outbound firewall rules where DNS resolves:" -ForegroundColor Yellow
         foreach ($domain in $telemetryDomains) {
             Write-Host "    - $domain" -ForegroundColor DarkGray
         }
         return
     }
 
-    $hostsEntries = @()
-
     try {
+        # HOSTS sinkhole is the durable layer: 0.0.0.0 blocks the name regardless of
+        # which CDN IP the endpoint rotates to. The firewall rules are the second
+        # layer, catching traffic that reaches a hardcoded IP, but they resolve to
+        # specific addresses at apply time and go stale as those addresses change,
+        # so they are additive to HOSTS rather than the primary block.
         foreach ($domain in $telemetryDomains) {
             $ruleName = "Winnow_BlockTelemetry_$domain"
 
-            # Remove any existing rule first
             $existing = Get-NetFirewallRule -DisplayName $ruleName -ErrorAction SilentlyContinue
             if ($existing) {
                 Remove-NetFirewallRule -DisplayName $ruleName -ErrorAction SilentlyContinue
             }
 
-            # Attempt DNS resolution
             $ips = @()
             try {
                 $ips = (Resolve-DnsName -Name $domain -ErrorAction SilentlyContinue |
@@ -70,27 +105,20 @@ function Invoke-BlockTelemetryFirewall {
             if ($null -ne $ips -and $ips.Count -gt 0) {
                 New-NetFirewallRule -DisplayName $ruleName -Direction Outbound -Action Block `
                     -RemoteAddress $ips -ErrorAction Stop | Out-Null
-                Write-Host "  [FW] Blocked $domain ($($ips -join ', '))" -ForegroundColor Green
-            } else {
-                # Fallback: HOSTS file entry
-                $hostsEntries += "0.0.0.0 $domain"
-                Write-Host "  [HOSTS] DNS unavailable - queued HOSTS entry for $domain" -ForegroundColor DarkGray
+                Write-Host "  [FW] $domain ($($ips -join ', '))" -ForegroundColor Green
+            }
+            else {
+                Write-Host "  [FW] $domain - DNS did not resolve; HOSTS sinkhole still covers it." -ForegroundColor DarkGray
             }
         }
 
-        # Write HOSTS entries if any fallbacks were needed
-        if ($hostsEntries.Count -gt 0) {
-            $currentHosts = Get-Content -Path $hostsPath -Raw -ErrorAction SilentlyContinue
+        # Sinkhole every domain in HOSTS, not only the ones whose DNS failed.
+        $currentHosts = Get-Content -Path $hostsPath -Raw -ErrorAction SilentlyContinue
+        $newHosts = New-WinnowTelemetryHostsContent -CurrentHosts $currentHosts -Domains $telemetryDomains
+        Set-Content -Path $hostsPath -Value $newHosts -Encoding ASCII -Force -NoNewline -ErrorAction Stop
+        Write-Host "  [HOSTS] Sinkholed $($telemetryDomains.Count) telemetry domains." -ForegroundColor Green
 
-            # Strip any previous Winnow block
-            $currentHosts = $currentHosts -replace "(?s)$hostsMarkerStart.*?$hostsMarkerEnd`r?`n?", ""
-
-            $block = "`r`n$hostsMarkerStart`r`n" + ($hostsEntries -join "`r`n") + "`r`n$hostsMarkerEnd`r`n"
-            $currentHosts + $block | Set-Content -Path $hostsPath -Encoding ASCII -Force -ErrorAction Stop
-            Write-Host "  [HOSTS] Wrote $($hostsEntries.Count) fallback entries to hosts file" -ForegroundColor Green
-        }
-
-        Write-Host "  [+] Telemetry blocks applied (Firewall + HOSTS)." -ForegroundColor Green
+        Write-Host "  [+] Telemetry blocks applied (HOSTS + Firewall)." -ForegroundColor Green
     }
     catch {
         Write-Host "  [ERROR] Failed to apply telemetry blocks: $_" -ForegroundColor Red
