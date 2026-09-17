@@ -101,6 +101,15 @@ jobs:
             exit 1
           }
 
+      - name: Run update watchdog tests
+        shell: pwsh
+        run: |
+          $result = Invoke-Pester -Path "Tests/Unit/Test-UpdateWatchdog.ps1" -Output Detailed -PassThru
+          if ($result.FailedCount -gt 0) {
+            Write-Error "$($result.FailedCount) test(s) failed in Test-UpdateWatchdog.ps1"
+            exit 1
+          }
+
       - name: Run integration tests
         shell: pwsh
         run: |
