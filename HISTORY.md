@@ -1,3 +1,22 @@
+## [v4.2.0] - 2026-09-17
+### Artifacts
+- **Release Package**: Winnow-v4.2.0.zip
+- **Standalone**: Winnow-Standalone.ps1
+- Both built and published by the release workflow on tag push. Checksums are on the release page.
+### Added
+- Full-module rollback Scope B: a failed apply now also reverts the imperative registry writes of the SecurityHardening, ExtendedAIPurge, and GamingMode modules, each value captured with its type before apply and restored (or removed) on rollback. One-way ops (Recall removal) and the powercfg change stay reported as not restored.
+- `-VerifyWatchdog` prints a read-only watchdog health report (task registered, payload integrity, directory lockdown, last run), exit 0 healthy / 2 degraded.
+- The watchdog mirrors integrity failures (event 2000) and corrected drift (event 1000) to the Windows event log.
+- Sourced tool-by-tool comparison in `COMPARISON.md`, linked from the README and the wiki.
+### Changed
+- The update watchdog now re-asserts the whole machine-wide privacy policy floor (Copilot, Recall, Windows AI, generative fill, cross-device clipboard, ink workspace, OneDrive sync, dmwappushservice, CEIP tasks), not just AllowTelemetry and DiagTrack, correcting only what drifted.
+- The telemetry block sinkholes every domain in HOSTS (IP-rotation-proof) as the primary layer, with firewall rules kept as an additive second layer.
+### Security
+- Hardened the update watchdog against tampering: its directory is locked to SYSTEM and Administrators (re-applied every run) and its payload is hash-checked against an admin-only registry key before it enforces, failing closed on mismatch. Closes the path where a non-admin could replace a script a SYSTEM task runs.
+- Closed a local privilege-escalation path in the standalone build: it now elevates before it unpacks and extracts to a directory locked to Administrators and SYSTEM, so the elevated run no longer reads its scripts from a user-writable location.
+### Known limitation
+- The mutating end-to-end paths (rollback capture-apply-fail-restore, and a live watchdog run against a real Windows update as SYSTEM) are unit-tested with mocks and verified read-only on real hardware, but have not yet been exercised in Windows Sandbox.
+
 ## [v4.1.0] - 2026-09-13
 ### Artifacts
 - **Release Package**: Winnow-v4.1.0.zip
