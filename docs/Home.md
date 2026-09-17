@@ -18,5 +18,11 @@ We believe in open-source transparency - no "black box" registry hacking. Below 
 4. [🎮 Performance & Gaming Optimization](Performance-And-Gaming.md)
    *Understand MMCSS tuning (`NetworkThrottlingIndex`), 0.5ms Timer Resolutions, CPU core parking, and Windows Defender real-time exclusions.*
 
+## How Winnow compares
+
+Winnow treats a debloat run as a reversible, verifiable, update-surviving operation rather than a one-shot set of toggles. That is where it leads the alternatives: automatic rollback when an apply fails, `-Verify` state checks with exit codes for automation, and an update watchdog that re-asserts your privacy settings after Windows resets them. Where another tool is the better fit, such as WinUtil for an all-in-one suite or O&O ShutUp10++ for a gentler on-ramp, the comparison says so.
+
+See [COMPARISON.md](../COMPARISON.md) for the sourced, tool-by-tool breakdown against Raphire/Win11Debloat, O&O ShutUp10++, Chris Titus WinUtil, custom ISOs, and Sophia Script, including Winnow's own limitations.
+
 ---
 *Winnow - keep the grain, lose the bloat.*
