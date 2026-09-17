@@ -120,3 +120,116 @@ function Invoke-InstallUpdateWatchdog {
         Write-Host "  [ERROR] Failed to install Update Watchdog: $_" -ForegroundColor Red
     }
 }
+
+function Get-WinnowWatchdogHealth {
+    # Read-only health report for the watchdog. A fail-closed control that refuses
+    # to run is silent by design, so this surfaces whether it is installed, whether
+    # the payload still matches the hash recorded at install, whether the directory
+    # is still locked down, and when it last ran.
+    [CmdletBinding()]
+    param()
+
+    $taskName = 'Winnow_UpdateWatchdog'
+    $taskPath = '\Winnow'
+    $watchdogDir = Join-Path $env:ProgramData 'Winnow'
+    $scriptPath = Join-Path $watchdogDir 'Watchdog.ps1'
+    $regPath = 'HKLM:\SOFTWARE\Winnow\Watchdog'
+
+    $task = Get-ScheduledTask -TaskName $taskName -TaskPath $taskPath -ErrorAction SilentlyContinue
+    $installed = [bool]$task
+
+    $lastRun = $null
+    $lastResult = $null
+    if ($task) {
+        $info = Get-ScheduledTaskInfo -TaskName $taskName -TaskPath $taskPath -ErrorAction SilentlyContinue
+        if ($info) {
+            $lastRun = $info.LastRunTime
+            $lastResult = $info.LastTaskResult
+        }
+    }
+
+    $recordedHash = $null
+    $schemaVersion = $null
+    $installedUtc = $null
+    try {
+        $props = Get-ItemProperty -LiteralPath $regPath -ErrorAction Stop
+        $recordedHash = $props.PayloadSha256
+        $schemaVersion = $props.SchemaVersion
+        $installedUtc = $props.InstalledUtc
+    }
+    catch { }
+
+    $payloadPresent = Test-Path -LiteralPath $scriptPath
+    $currentHash = if ($payloadPresent) { (Get-FileHash -LiteralPath $scriptPath -Algorithm SHA256).Hash } else { $null }
+    $integrityOk = ($payloadPresent -and -not [string]::IsNullOrWhiteSpace($recordedHash) -and $currentHash -eq $recordedHash)
+
+    $aclProtected = $false
+    $aclLockedDown = $false
+    if (Test-Path -LiteralPath $watchdogDir) {
+        try {
+            $acl = Get-Acl -LiteralPath $watchdogDir
+            $aclProtected = [bool]$acl.AreAccessRulesProtected
+            $writeRights = [int][System.Security.AccessControl.FileSystemRights]::Write
+            $userWrite = $false
+            foreach ($rule in $acl.Access) {
+                $sid = ''
+                try { $sid = $rule.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value }
+                catch { $sid = '' }
+                if ($sid -in @('S-1-5-32-545', 'S-1-5-11', 'S-1-1-0') -and (([int]$rule.FileSystemRights -band $writeRights) -ne 0)) {
+                    $userWrite = $true
+                }
+            }
+            $aclLockedDown = ($aclProtected -and -not $userWrite)
+        }
+        catch { }
+    }
+
+    [PSCustomObject]@{
+        Installed      = $installed
+        PayloadPresent = $payloadPresent
+        IntegrityOk    = $integrityOk
+        AclProtected   = $aclProtected
+        AclLockedDown  = $aclLockedDown
+        SchemaVersion  = $schemaVersion
+        InstalledUtc   = $installedUtc
+        LastRunTime    = $lastRun
+        LastTaskResult = $lastResult
+        RecordedHash   = $recordedHash
+        CurrentHash    = $currentHash
+        Healthy        = ($installed -and $integrityOk -and $aclLockedDown)
+    }
+}
+
+function Show-WinnowWatchdogHealth {
+    [CmdletBinding()]
+    param()
+
+    $health = Get-WinnowWatchdogHealth
+
+    Write-Host ''
+    Write-Host 'Winnow update watchdog health' -ForegroundColor Cyan
+
+    if (-not $health.Installed) {
+        Write-Host '[NotInstalled] The watchdog scheduled task is not registered. Run Winnow with -EnableUpdateWatchdog to install it.' -ForegroundColor Yellow
+        return $health
+    }
+
+    $line = {
+        param($Ok, $Label, $Detail)
+        $mark = if ($Ok) { 'OK' } else { 'FAIL' }
+        $color = if ($Ok) { 'Green' } else { 'Red' }
+        Write-Host ("[{0}] {1}: {2}" -f $mark, $Label, $Detail) -ForegroundColor $color
+    }
+
+    & $line $health.Installed 'Scheduled task' 'Registered under \Winnow.'
+    & $line $health.IntegrityOk 'Payload integrity' $(if ($health.IntegrityOk) { 'Payload matches the hash recorded at install.' } else { 'Payload is missing or does not match the recorded hash. Re-run Winnow to reinstall.' })
+    & $line $health.AclLockedDown 'Directory lockdown' $(if ($health.AclLockedDown) { 'Only SYSTEM and Administrators can write the payload directory.' } else { 'The payload directory is not locked down. Re-run Winnow to re-harden it.' })
+
+    if ($health.InstalledUtc) { Write-Host ("       Installed (UTC): {0}" -f $health.InstalledUtc) -ForegroundColor DarkGray }
+    if ($health.LastRunTime) { Write-Host ("       Last run: {0} (result 0x{1:X})" -f $health.LastRunTime, [int]$health.LastTaskResult) -ForegroundColor DarkGray }
+
+    $overallColor = if ($health.Healthy) { 'Green' } else { 'Red' }
+    Write-Host ("Watchdog health: {0}" -f $(if ($health.Healthy) { 'healthy' } else { 'degraded' })) -ForegroundColor $overallColor
+
+    return $health
+}

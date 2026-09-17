@@ -123,6 +123,8 @@ After applying changes, or at any time using `-Verify` or `-VerifyProfile`, Winn
 
 Exit code `0` signals full compliance. Exit code `2` signals drift, an unsupported feature state, or a verification failure. This enables automated rollout pipelines and endpoint compliance auditing without manual inspection.
 
+`-VerifyWatchdog` reports the update watchdog's own health separately: whether its SYSTEM scheduled task is registered, whether the payload still matches the hash recorded at install, whether its directory is still locked down, and when it last ran. It uses the same `0` healthy / `2` degraded exit codes.
+
 ### Stage 4 - Automatic Rollback
 
 If the apply phase fails, Winnow restores the Stage 1 backup on its own rather than leaving a half-applied system. A registry import failure triggers the restore; the run then stops without attempting any undo work, because undo on top of a restored or partially changed system makes the final state harder to reason about.

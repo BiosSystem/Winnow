@@ -6,6 +6,10 @@ Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Ve
 
 ## [Unreleased]
 
+### Added
+
+- `-VerifyWatchdog` prints a read-only health report for the update watchdog: whether the task is registered, whether the payload still matches the hash recorded at install, whether the payload directory is still locked down, and when it last ran. Exits `0` when healthy and `2` when degraded or not installed, so a fail-closed watchdog that quietly refused to run is now visible to a scheduled check or monitoring script.
+
 ### Changed
 
 - Reworked the update watchdog so it re-asserts the whole privacy policy floor instead of only the `AllowTelemetry` policy and the `DiagTrack` service. It now also re-applies the Copilot, Recall, Windows AI, generative fill, cross-device clipboard, ink workspace, and OneDrive sync policies, the `dmwappushservice` service, and the CEIP telemetry scheduled tasks, touching only the ones that have drifted. The floor is limited to machine-wide `HKLM` policy keys because a SYSTEM task has no user context.

@@ -137,6 +137,7 @@ param (
     [switch]$DryRun,
     [switch]$Verify,
     [string]$VerifyProfile,
+    [switch]$VerifyWatchdog,
     [switch]$InstallSoftware,
     [string[]]$SoftwareList,
     [switch]$GenerateUnattend,
@@ -543,6 +544,22 @@ if ($script:Params.ContainsKey("AppRemovalTarget")) {
 # Remove LastUsedSettings.json file if it exists and is empty
 if ((Test-Path $script:SavedSettingsFilePath) -and ([String]::IsNullOrWhiteSpace((Get-content $script:SavedSettingsFilePath)))) {
     Remove-Item -Path $script:SavedSettingsFilePath -recurse
+}
+
+if ($VerifyWatchdog) {
+    try {
+        $watchdogHealth = Show-WinnowWatchdogHealth
+        try { Stop-Transcript | Out-Null } catch { }
+        if (-not $watchdogHealth.Healthy) {
+            exit 2
+        }
+        exit 0
+    }
+    catch {
+        Write-Error "Watchdog health check failed: $($_.Exception.Message)"
+        try { Stop-Transcript | Out-Null } catch { }
+        exit 2
+    }
 }
 
 if ($Verify -or $VerifyProfile) {
