@@ -83,6 +83,19 @@ Track 1 automatic rollback. Rollback does not exist yet, so the whole block skip
 itself until `InvokeChanges.ps1` references `Restore-RegistryBackupState`. When
 Track 1 wires that up, these activate on their own.
 
+**`ModuleRegistryRollback.Tests.ps1`** - `Mutating`. Scope B of full-module rollback
+against the real registry. Captures a module's declared registry targets, drifts a
+representative subset that mixes HKCU and HKLM and string and DWord types, restores from
+the snapshot, and asserts each target is back to exactly what was captured, type included,
+plus that a value the module created where none existed is removed rather than left behind.
+
+**`WatchdogEnforcement.Tests.ps1`** - `Mutating`. Installs the real update watchdog and
+checks the mutations that only happen live: the SYSTEM task is registered, the payload
+directory is locked to SYSTEM and Administrators, the recorded hash makes the integrity
+check pass, a drifted machine policy is re-asserted against the real registry while an
+already-correct value is left untouched, and a tampered payload fails the check closed.
+Everything it installs is removed in teardown.
+
 They also pin the two open decisions in section 9 of the plan. The load-bearing
 one is that an app-removal failure must **not** trigger rollback: a registry
 restore cannot bring back an uninstalled Appx package, so rolling back there

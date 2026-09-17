@@ -4,6 +4,12 @@ Document all notable Winnow changes in this file. Releases before 4.0.0 were pub
 
 Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Mutating integration tests (Windows Sandbox only) for the two paths that were previously only unit-tested with mocks: Scope B module registry rollback (`ModuleRegistryRollback.Tests.ps1`, capture and restore against the real registry with type preservation) and the update watchdog (`WatchdogEnforcement.Tests.ps1`, real install, directory lockdown, integrity check, live policy re-assertion, and tamper detection). They run under `-Mutating` and are excluded from CI.
+
 ## [4.2.0] - 2026-09-17
 
 ### Added
