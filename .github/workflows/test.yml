@@ -110,6 +110,15 @@ jobs:
             exit 1
           }
 
+      - name: Run standalone wrapper tests
+        shell: pwsh
+        run: |
+          $result = Invoke-Pester -Path "Tests/Unit/Test-StandaloneWrapper.ps1" -Output Detailed -PassThru
+          if ($result.FailedCount -gt 0) {
+            Write-Error "$($result.FailedCount) test(s) failed in Test-StandaloneWrapper.ps1"
+            exit 1
+          }
+
       - name: Run integration tests
         shell: pwsh
         run: |

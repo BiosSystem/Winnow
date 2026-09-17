@@ -49,29 +49,75 @@ function Format-StandaloneArg {
     return '"' + `$escaped + '"'
 }
 
+function Test-StandaloneAdmin {
+    return ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Set-StandaloneSecureDirectoryAcl {
+    # Lock the extraction directory to Administrators and SYSTEM before any payload
+    # lands in it. Winnow dot-sources roughly a hundred files from here while running
+    # elevated; without this a standard user could swap one of those files after
+    # extraction and have it execute with the elevated process's rights. Inheritance
+    # is turned off so the user's writable %TEMP% ACL does not carry in.
+    param([string]`$Path)
+
+    `$acl = New-Object System.Security.AccessControl.DirectorySecurity
+    `$acl.SetAccessRuleProtection(`$true, `$false)
+    `$full = [System.Security.AccessControl.FileSystemRights]::FullControl
+    `$inherit = [System.Security.AccessControl.InheritanceFlags]'ContainerInherit, ObjectInherit'
+    `$noProp = [System.Security.AccessControl.PropagationFlags]::None
+    `$allow = [System.Security.AccessControl.AccessControlType]::Allow
+    `$system = New-Object System.Security.Principal.SecurityIdentifier 'S-1-5-18'
+    `$admins = New-Object System.Security.Principal.SecurityIdentifier 'S-1-5-32-544'
+    `$acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule(`$system, `$full, `$inherit, `$noProp, `$allow)))
+    `$acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule(`$admins, `$full, `$inherit, `$noProp, `$allow)))
+    Set-Acl -LiteralPath `$Path -AclObject `$acl
+}
+
 # Payload (Base64 Zip)
 `$processExitCode = 1
 `$Payload = "$Base64String"
 
-# Extraction Path
-`$ExtractPath = Join-Path `$env:TEMP "Winnow_Run_`$([Guid]::NewGuid().ToString().Substring(0,8))"
-if (-not (Test-Path `$ExtractPath)) {
-    New-Item -ItemType Directory -Path `$ExtractPath -Force | Out-Null
+# Elevate before extracting. If a non-elevated process extracted the payload and
+# then Winnow relaunched itself elevated, the elevated run would read its scripts
+# from a directory the standard user still controls, which is a local privilege
+# escalation. Elevating first means extraction and every dot-sourced file live in
+# an admin-only directory for the whole run.
+if (-not (Test-StandaloneAdmin)) {
+    `$selfPath = `$PSCommandPath
+    if ([string]::IsNullOrEmpty(`$selfPath)) { `$selfPath = `$MyInvocation.MyCommand.Definition }
+
+    `$relaunchArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", (Format-StandaloneArg `$selfPath))
+    foreach (`$argument in `$args) {
+        `$relaunchArgs += (Format-StandaloneArg ([string]`$argument))
+    }
+
+    try {
+        `$elevated = Start-Process -FilePath "powershell.exe" -ArgumentList `$relaunchArgs -Verb RunAs -Wait -PassThru -ErrorAction Stop
+        `$processExitCode = `$elevated.ExitCode
+    }
+    catch {
+        Write-Error "Winnow needs administrator rights, and elevation was cancelled or failed: `$_"
+        `$processExitCode = 1
+    }
+    exit `$processExitCode
 }
 
-`$ZipPath = Join-Path `$ExtractPath "payload.zip"
+# Elevated from here. A full GUID gives a non-guessable directory name, and the
+# locked ACL closes the tamper window for the rest of the run.
+`$ExtractPath = Join-Path `$env:TEMP "Winnow_Run_`$([Guid]::NewGuid().ToString('N'))"
 
 try {
-    # Decode and save
+    New-Item -ItemType Directory -Path `$ExtractPath -Force | Out-Null
+    Set-StandaloneSecureDirectoryAcl -Path `$ExtractPath
+
+    `$ZipPath = Join-Path `$ExtractPath "payload.zip"
     `$Bytes = [System.Convert]::FromBase64String(`$Payload)
     [System.IO.File]::WriteAllBytes(`$ZipPath, `$Bytes)
-    
-    # Extract
+
     Expand-Archive -Path `$ZipPath -DestinationPath `$ExtractPath -Force
-    
-    # Run the real script
+
     `$ScriptPath = Join-Path `$ExtractPath "Winnow.ps1"
-    
     if (Test-Path `$ScriptPath) {
         `$ArgsList = @("-ExecutionPolicy", "Bypass", "-NoProfile", "-File", (Format-StandaloneArg `$ScriptPath))
         foreach (`$argument in `$args) {
@@ -86,7 +132,6 @@ try {
 } catch {
     Write-Error "An error occurred while launching Winnow: `$_"
 } finally {
-    # Cleanup
     if (Test-Path `$ExtractPath) {
         Remove-Item `$ExtractPath -Recurse -Force -ErrorAction SilentlyContinue
     }

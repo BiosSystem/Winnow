@@ -7,7 +7,7 @@ Winnow is a modular, extensible PowerShell 5.1 engine. The core orchestrator rea
 Before any module executes, Winnow validates the runtime environment:
 
 1. **PowerShell version guard** - Halts if the host is not Windows PowerShell 5.1. PowerShell 7 cannot reliably invoke Appx removal cmdlets or system restore APIs.
-2. **Administrator elevation** - Checks `[Security.Principal.WindowsPrincipal]` and restarts under `Start-Process powershell -Verb RunAs` if elevation is absent. UAC arguments are quoted using Win32-safe escaping.
+2. **Administrator elevation** - Checks `[Security.Principal.WindowsPrincipal]` and restarts under `Start-Process powershell -Verb RunAs` if elevation is absent. UAC arguments are quoted using Win32-safe escaping. The standalone build elevates *before* it unpacks its payload, then extracts to a fresh directory locked to Administrators and SYSTEM (inheritance off). This closes a local privilege-escalation path: if a non-elevated process extracted first and Winnow then self-elevated, the elevated run would be reading its scripts from a directory the standard user could still overwrite between extraction and execution.
 3. **Mark-of-the-Web handling** - Unblocks only marked PowerShell source files when Group Policy overrides the execution policy. Executable and data files are not unblocked.
 4. **Domain-join warning** - Detects domain-joined systems and warns that Group Policy may override applied registry changes after the next policy refresh.
 5. **Path and asset validation** - Confirms that all required directories (`Assets`, `Config`, `Regfiles`, `Schemas`, `Scripts`) are present before loading any module.
