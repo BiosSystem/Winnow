@@ -13,6 +13,7 @@ Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Ve
 
 ### Changed
 
+- Made the telemetry block durable against CDN IP rotation. It previously created firewall rules from each domain's resolved IPs and only wrote a HOSTS `0.0.0.0` entry when DNS failed, so once the telemetry endpoints rotated to new addresses the IP rules stopped matching. Now every domain is sinkholed in HOSTS (IP-independent) as the primary layer, with the firewall rules kept as an additive second layer for hardcoded-IP traffic. Extracted `New-WinnowTelemetryHostsContent` as a pure, unit-tested composer so re-applying stays idempotent and never stacks duplicate blocks.
 - Reworked the update watchdog so it re-asserts the whole privacy policy floor instead of only the `AllowTelemetry` policy and the `DiagTrack` service. It now also re-applies the Copilot, Recall, Windows AI, generative fill, cross-device clipboard, ink workspace, and OneDrive sync policies, the `dmwappushservice` service, and the CEIP telemetry scheduled tasks, touching only the ones that have drifted. The floor is limited to machine-wide `HKLM` policy keys because a SYSTEM task has no user context.
 
 ### Security

@@ -6,14 +6,13 @@ Winnow uses a "Defense in Depth" approach to telemetry blocking.
 We disable `DiagTrack` (Connected User Experiences and Telemetry) and `dmwappushservice`. 
 Targeted ads and App Launch tracking are disabled via `HKCU\Software\Microsoft\Windows\CurrentVersion\AdvertisingInfo`.
 
-## Dual-Layer Firewall Blocking
-Microsoft often resets telemetry registry keys during major updates. To combat this, Winnow hardcodes outbound Windows Defender Firewall rules to block traffic to:
-* `vortex.data.microsoft.com`
-* `telemetry.microsoft.com`
-* `settings-win.data.microsoft.com`
-* `oca.telemetry.microsoft.com`
+## Dual-Layer Endpoint Blocking
+Winnow blocks the telemetry and AI-inference endpoints in two layers:
 
-Even if the service starts, the traffic is dropped at the network layer.
+1. **HOSTS sinkhole (primary).** Every known telemetry domain is pointed at `0.0.0.0` in the hosts file. This is IP-independent, so it keeps working when the endpoint rotates to a new CDN address, which the endpoints do constantly. Examples: `vortex.data.microsoft.com`, `telemetry.microsoft.com`, `settings-win.data.microsoft.com`, `copilot.microsoft.com`.
+2. **Firewall rules (additive).** Winnow also resolves each domain at apply time and adds outbound Windows Defender Firewall block rules for those addresses, which catches traffic that reaches a hardcoded IP without a name lookup. These rules go stale as the addresses rotate, so they back up the HOSTS layer rather than being the main block.
+
+Even if the telemetry service starts, name resolution is sinkholed and the current addresses are dropped at the network layer. A single marked block in the hosts file (`# Winnow-TelemetryBlock-Start/End`) keeps the change contained and reversible.
 
 ## The Update Watchdog
 With the `-EnableUpdateWatchdog` switch, Winnow registers a lightweight Scheduled Task (`\Winnow\Winnow_UpdateWatchdog`) that runs as SYSTEM. It triggers on the Windows Update install events (Event ID `19` and `43` from `Microsoft-Windows-WindowsUpdateClient`), with a daily fallback if the event trigger cannot be created. When it fires it re-asserts the privacy policy floor Windows Update and the in-box re-provisioning most often reset: the `AllowTelemetry` policy, the Copilot, Recall, and Windows AI policies, generative fill, cross-device clipboard, ink workspace, and OneDrive sync policies, the `DiagTrack` and `dmwappushservice` services, and the CEIP telemetry scheduled tasks. It touches only what has drifted and logs what it corrected to `%ProgramData%\Winnow\watchdog.log`. The floor is limited to machine-wide (`HKLM`) policy keys, because a SYSTEM task has no user context and must not guess a hive.
