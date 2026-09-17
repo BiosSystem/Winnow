@@ -164,3 +164,46 @@ Describe 'Winnow update watchdog enforcement' {
         $result | Should -Contain 'task:Proxy'
     }
 }
+
+Describe 'Winnow update watchdog health' {
+    It 'reports healthy when installed, intact, and locked down' {
+        Mock -CommandName Get-ScheduledTask -MockWith { [PSCustomObject]@{ TaskName = 'Winnow_UpdateWatchdog' } }
+        Mock -CommandName Get-ScheduledTaskInfo -MockWith { [PSCustomObject]@{ LastRunTime = (Get-Date); LastTaskResult = 0 } }
+        Mock -CommandName Get-ItemProperty -MockWith { [PSCustomObject]@{ PayloadSha256 = 'ABC123'; SchemaVersion = 2; InstalledUtc = '2026-09-17T00:00:00.0000000Z' } }
+        Mock -CommandName Test-Path -MockWith { $true }
+        Mock -CommandName Get-FileHash -MockWith { [PSCustomObject]@{ Hash = 'ABC123' } }
+        Mock -CommandName Get-Acl -MockWith { [PSCustomObject]@{ AreAccessRulesProtected = $true; Access = @() } }
+
+        $health = Get-WinnowWatchdogHealth
+
+        $health.Installed | Should -BeTrue
+        $health.IntegrityOk | Should -BeTrue
+        $health.AclLockedDown | Should -BeTrue
+        $health.Healthy | Should -BeTrue
+    }
+
+    It 'reports degraded when the payload hash no longer matches' {
+        Mock -CommandName Get-ScheduledTask -MockWith { [PSCustomObject]@{ TaskName = 'Winnow_UpdateWatchdog' } }
+        Mock -CommandName Get-ScheduledTaskInfo -MockWith { [PSCustomObject]@{ LastRunTime = (Get-Date); LastTaskResult = 0 } }
+        Mock -CommandName Get-ItemProperty -MockWith { [PSCustomObject]@{ PayloadSha256 = 'ABC123' } }
+        Mock -CommandName Test-Path -MockWith { $true }
+        Mock -CommandName Get-FileHash -MockWith { [PSCustomObject]@{ Hash = 'DIFFERENT' } }
+        Mock -CommandName Get-Acl -MockWith { [PSCustomObject]@{ AreAccessRulesProtected = $true; Access = @() } }
+
+        $health = Get-WinnowWatchdogHealth
+
+        $health.IntegrityOk | Should -BeFalse
+        $health.Healthy | Should -BeFalse
+    }
+
+    It 'reports not installed when the task is absent' {
+        Mock -CommandName Get-ScheduledTask -MockWith { $null }
+        Mock -CommandName Get-ItemProperty -MockWith { $null }
+        Mock -CommandName Test-Path -MockWith { $false }
+
+        $health = Get-WinnowWatchdogHealth
+
+        $health.Installed | Should -BeFalse
+        $health.Healthy | Should -BeFalse
+    }
+}
