@@ -8,6 +8,9 @@ Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Ve
 
 ### Added
 
+- Full-module rollback Scope B: a failed apply now also reverts the imperative registry writes the SecurityHardening, ExtendedAIPurge, and GamingMode modules make (RDP policy, TLS 1.0/1.1, AutoRun, Windows Script Host, the AI and Copilot policies, the gaming tweaks, and the per-interface Nagle values), not just the non-registry state. Each module declares its write targets as data (`Get-<Module>RegistryTargets`), the pre-apply value and type of every target is snapshotted, and rollback writes the original back or removes a value the module created. One-way operations (Recall component removal) and the powercfg power-plan change remain reported as not restored. A drift-guard test asserts every `Set-ItemProperty` name in each module is declared by its target provider.
+- Wired `Test-ModuleRollback.ps1` and `Test-ConfigConsistency.ps1` into the CI unit-test workflow; both existed but were not being run.
+
 - The update watchdog now mirrors its security-relevant lines to the Windows event log (source `Winnow`, `Application` log, registered at install): an integrity failure as an Error (event ID `2000`) and a corrected drift as a Warning (event ID `1000`). A tamper attempt against a SYSTEM control is now auditable and SIEM-collectable, not only in a local text file the same attacker could edit. Falls back to the text log if the source cannot be registered.
 - `-VerifyWatchdog` prints a read-only health report for the update watchdog: whether the task is registered, whether the payload still matches the hash recorded at install, whether the payload directory is still locked down, and when it last ran. Exits `0` when healthy and `2` when degraded or not installed, so a fail-closed watchdog that quietly refused to run is now visible to a scheduled check or monitoring script.
 

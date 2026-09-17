@@ -111,3 +111,24 @@ function Disable-SecurityHardening {
     Write-Host ""
 }
 
+function Get-SecurityHardeningRegistryTargets {
+    # The exact registry values Enable-SecurityHardening writes, as data, so the
+    # rollback snapshot captures the same set the apply changes and cannot drift
+    # from it. Paths only; the snapshot records each value and its type at capture.
+    $targets = @(
+        @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server'; Name = 'fDenyTSConnections' }
+        @{ Path = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer'; Name = 'NoDriveTypeAutoRun' }
+        @{ Path = 'HKLM:\SOFTWARE\Microsoft\Windows Script Host\Settings'; Name = 'Enabled' }
+    )
+    foreach ($tlsPath in @(
+            'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.0\Client',
+            'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.0\Server',
+            'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.1\Client',
+            'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.1\Server'
+        )) {
+        $targets += @{ Path = $tlsPath; Name = 'Enabled' }
+        $targets += @{ Path = $tlsPath; Name = 'DisabledByDefault' }
+    }
+    return $targets
+}
+

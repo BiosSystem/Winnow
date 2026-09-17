@@ -59,7 +59,7 @@ Describe 'Restore-ModuleState' {
         $r.Reverted | Should -Contain 'telemetry firewall and HOSTS'
     }
 
-    It 're-enables SMB1 and removes the port blocks when SMB1 was on, and flags the registry gap' {
+    It 're-enables SMB1 and removes the port blocks when SMB1 was on' {
         $path = New-SnapshotFile @{ Smb1State = 'Enabled' }
         Mock Remove-SecurityPortBlockRules { }
         Mock Enable-WindowsOptionalFeature { }
@@ -70,7 +70,6 @@ Describe 'Restore-ModuleState' {
         Should -Invoke Remove-SecurityPortBlockRules -Times 1
         Should -Invoke Enable-WindowsOptionalFeature -Times 1
         $r.Reverted | Should -Contain 'security firewall and SMB1'
-        ($r.Uncovered -join ' ') | Should -Match 'RDP|TLS|registry'
     }
 
     It 'does not re-enable SMB1 when it was already off' {
@@ -120,5 +119,133 @@ Describe 'New-ModuleStateSnapshot' {
     It 'returns nothing when no module feature is being applied' {
         $script:RegistryBackupsPath = Join-Path $TestDrive 'backups'
         New-ModuleStateSnapshot -ApplyIds @('DisableCopilot', 'DisableBing') | Should -BeNullOrEmpty
+    }
+}
+
+Describe 'Module registry rollback (Scope B)' {
+
+    BeforeAll {
+        $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..\..') | Select-Object -ExpandProperty Path
+        . (Join-Path $repoRoot 'Scripts\Features\BlockTelemetryFirewall.ps1')
+        . (Join-Path $repoRoot 'Scripts\Features\BackupModuleState.ps1')
+
+        function New-RegSnapshotFile {
+            param([hashtable]$Snapshot)
+            $path = Join-Path $TestDrive ('regsnap-' + [guid]::NewGuid().ToString('N').Substring(0, 8) + '.json')
+            $Snapshot | ConvertTo-Json -Depth 6 | Out-File -FilePath $path -Encoding UTF8 -Force
+            return $path
+        }
+    }
+
+    It 'restores a captured value that existed, with its type' {
+        $path = New-RegSnapshotFile @{ RegistryValues = @(@{ Path = 'HKLM:\SOFTWARE\WinnowTest'; Name = 'fDenyTSConnections'; Existed = $true; Value = 0; Kind = 'DWord' }) }
+        Mock Set-ItemProperty { }
+        Mock Test-Path { $true }
+
+        $r = Restore-ModuleState -SnapshotPath $path -AppliedFeatures @('EnableSecurityHardening')
+
+        Should -Invoke Set-ItemProperty -Times 1 -Exactly
+        $r.Reverted | Should -Contain 'module registry settings'
+    }
+
+    It 'removes a captured value that did not exist before' {
+        $path = New-RegSnapshotFile @{ RegistryValues = @(@{ Path = 'HKCU:\Software\WinnowTest'; Name = 'StartupDelayInMSec'; Existed = $false; Value = $null; Kind = $null }) }
+        Mock Remove-ItemProperty { }
+        Mock Test-Path { $true }
+
+        $r = Restore-ModuleState -SnapshotPath $path -AppliedFeatures @('EnableGamingMode')
+
+        Should -Invoke Remove-ItemProperty -Times 1 -Exactly
+        $r.Reverted | Should -Contain 'module registry settings'
+    }
+
+    It 'leaves registry alone when no registry-writing module applied' {
+        $path = New-RegSnapshotFile @{ RegistryValues = @(@{ Path = 'HKLM:\SOFTWARE\WinnowTest'; Name = 'X'; Existed = $true; Value = 1; Kind = 'DWord' }) }
+        Mock Set-ItemProperty { }
+        Mock Remove-ItemProperty { }
+
+        $null = Restore-ModuleState -SnapshotPath $path -AppliedFeatures @('DisableTelemetryServices')
+
+        Should -Invoke Set-ItemProperty -Times 0 -Exactly
+        Should -Invoke Remove-ItemProperty -Times 0 -Exactly
+    }
+
+    It 'records a failure and does not claim revert when a registry write throws' {
+        $path = New-RegSnapshotFile @{ RegistryValues = @(@{ Path = 'HKLM:\SOFTWARE\WinnowTest'; Name = 'X'; Existed = $true; Value = 1; Kind = 'DWord' }) }
+        Mock Set-ItemProperty { throw 'access denied' }
+        Mock Test-Path { $true }
+
+        $r = Restore-ModuleState -SnapshotPath $path -AppliedFeatures @('EnableSecurityHardening')
+
+        $r.Failed | Should -Not -BeNullOrEmpty
+        $r.Reverted | Should -Not -Contain 'module registry settings'
+    }
+}
+
+Describe 'Module registry targets' {
+
+    BeforeAll {
+        $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..\..') | Select-Object -ExpandProperty Path
+        . (Join-Path $repoRoot 'Scripts\Features\SecurityHardening.ps1')
+        . (Join-Path $repoRoot 'Scripts\Features\ExtendedAIPurge.ps1')
+        . (Join-Path $repoRoot 'Scripts\Features\GamingMode.ps1')
+        $script:featuresPath = Join-Path $repoRoot 'Scripts\Features'
+
+        function Get-SetItemPropertyNames {
+            param([string]$FilePath)
+            $tokens = $null
+            $parseErrors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile($FilePath, [ref]$tokens, [ref]$parseErrors)
+            $calls = @($ast.FindAll({
+                        param($n)
+                        $n -is [System.Management.Automation.Language.CommandAst] -and $n.GetCommandName() -eq 'Set-ItemProperty'
+                    }, $true))
+            $names = New-Object System.Collections.Generic.HashSet[string]
+            foreach ($call in $calls) {
+                for ($i = 0; $i -lt $call.CommandElements.Count; $i++) {
+                    $element = $call.CommandElements[$i]
+                    if ($element -is [System.Management.Automation.Language.CommandParameterAst] -and $element.ParameterName -eq 'Name') {
+                        $argument = if ($element.Argument) { $element.Argument } elseif (($i + 1) -lt $call.CommandElements.Count) { $call.CommandElements[$i + 1] } else { $null }
+                        if ($argument -is [System.Management.Automation.Language.StringConstantExpressionAst]) {
+                            [void]$names.Add($argument.Value)
+                        }
+                    }
+                }
+            }
+            return $names
+        }
+    }
+
+    It 'SecurityHardening provider lists the core hardening values' {
+        $names = @((Get-SecurityHardeningRegistryTargets).Name)
+        $names | Should -Contain 'fDenyTSConnections'
+        $names | Should -Contain 'NoDriveTypeAutoRun'
+        $names | Should -Contain 'DisabledByDefault'
+    }
+
+    It 'ExtendedAIPurge provider lists the AI policy values' {
+        $names = @((Get-ExtendedAIPurgeRegistryTargets).Name)
+        $names | Should -Contain 'TurnOffWindowsCopilot'
+        $names | Should -Contain 'AllowRecallEnablement'
+    }
+
+    It 'every Set-ItemProperty name in each module is declared by its provider (drift guard)' {
+        # TcpAckFrequency and TCPNoDelay are added per network interface at capture time,
+        # so their presence in the provider output depends on live interfaces; they are
+        # covered by construction and excluded from the static comparison.
+        $dynamic = @('TcpAckFrequency', 'TCPNoDelay')
+        $map = @{
+            'SecurityHardening' = @((Get-SecurityHardeningRegistryTargets).Name)
+            'ExtendedAIPurge'   = @((Get-ExtendedAIPurgeRegistryTargets).Name)
+            'GamingMode'        = @((Get-GamingModeRegistryTargets).Name)
+        }
+        foreach ($module in $map.Keys) {
+            $declared = $map[$module]
+            $written = Get-SetItemPropertyNames -FilePath (Join-Path $script:featuresPath ("{0}.ps1" -f $module))
+            foreach ($name in $written) {
+                if ($name -in $dynamic) { continue }
+                $declared | Should -Contain $name -Because "$module writes '$name' but its registry-target provider does not declare it"
+            }
+        }
     }
 }
