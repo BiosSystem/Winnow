@@ -59,6 +59,8 @@ Winnow provides a dedicated, non-destructive low-latency optimization stack desi
 | **Security Posture** | Retains core Defender & SmartScreen by default | Defender stripped completely (malware risk) | Toggles vary |
 | **Verification Auditing** | Built-in `-Verify` and `-VerifyProfile` audit engine | No automated state verification | None |
 
+For a fuller, sourced comparison against O&O ShutUp10++, Chris Titus WinUtil, and the Raphire upstream, including where those tools are the better choice, see [COMPARISON.md](COMPARISON.md).
+
 ---
 
 ---
