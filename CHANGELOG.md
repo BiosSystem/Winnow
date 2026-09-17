@@ -8,6 +8,7 @@ Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Ve
 
 ### Added
 
+- The update watchdog now mirrors its security-relevant lines to the Windows event log (source `Winnow`, `Application` log, registered at install): an integrity failure as an Error (event ID `2000`) and a corrected drift as a Warning (event ID `1000`). A tamper attempt against a SYSTEM control is now auditable and SIEM-collectable, not only in a local text file the same attacker could edit. Falls back to the text log if the source cannot be registered.
 - `-VerifyWatchdog` prints a read-only health report for the update watchdog: whether the task is registered, whether the payload still matches the hash recorded at install, whether the payload directory is still locked down, and when it last ran. Exits `0` when healthy and `2` when degraded or not installed, so a fail-closed watchdog that quietly refused to run is now visible to a scheduled check or monitoring script.
 
 ### Changed

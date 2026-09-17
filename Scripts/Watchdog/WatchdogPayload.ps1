@@ -48,6 +48,31 @@ function Write-WinnowWatchdogLog {
     catch { }
 }
 
+function Test-WinnowWatchdogEventSource {
+    param([string]$Source = 'Winnow')
+    try { return [System.Diagnostics.EventLog]::SourceExists($Source) }
+    catch { return $false }
+}
+
+function Write-WinnowWatchdogEvent {
+    # Mirror the security-relevant lines to the Windows event log so a tamper
+    # attempt or a corrected drift is auditable centrally, not just in a text
+    # file a local attacker could also edit. The installer registers the source;
+    # if it is missing this is a no-op and the text log still records everything.
+    param(
+        [Parameter(Mandatory)]
+        [string]$Message,
+        [ValidateSet('Information', 'Warning', 'Error')]
+        [string]$EntryType = 'Information',
+        [int]$EventId = 1000,
+        [string]$Source = 'Winnow'
+    )
+
+    if (-not (Test-WinnowWatchdogEventSource -Source $Source)) { return }
+    try { Write-EventLog -LogName Application -Source $Source -EntryType $EntryType -EventId $EventId -Message $Message -ErrorAction Stop }
+    catch { }
+}
+
 function Set-WinnowWatchdogDirectoryAcl {
     # Lock the payload directory so only SYSTEM and Administrators can change what
     # a SYSTEM task later executes. Standard users keep read and execute, nothing
@@ -200,7 +225,9 @@ function Invoke-WinnowWatchdog {
     catch { Write-WinnowWatchdogLog -Message "WARN could not re-harden the payload directory: $($_.Exception.Message)" -LogPath $context.LogPath }
 
     if (-not (Test-WinnowWatchdogIntegrity -PayloadPath $context.PayloadPath -RegPath $context.RegPath)) {
-        Write-WinnowWatchdogLog -Message 'SECURITY the payload failed its integrity check. Refusing to enforce. Re-run Winnow to reinstall the watchdog.' -LogPath $context.LogPath
+        $integrityMessage = 'The watchdog payload failed its integrity check. Refusing to enforce. Re-run Winnow to reinstall the watchdog.'
+        Write-WinnowWatchdogLog -Message "SECURITY $integrityMessage" -LogPath $context.LogPath
+        Write-WinnowWatchdogEvent -Message $integrityMessage -EntryType Error -EventId 2000
         return
     }
 
@@ -208,7 +235,9 @@ function Invoke-WinnowWatchdog {
     $reasserted = @(Invoke-WinnowWatchdogEnforcement -DesiredState $desiredState)
 
     if ($reasserted.Count -gt 0) {
-        Write-WinnowWatchdogLog -Message ("Corrected drift on: " + ($reasserted -join ', ')) -LogPath $context.LogPath
+        $driftMessage = "Corrected drift on: " + ($reasserted -join ', ')
+        Write-WinnowWatchdogLog -Message $driftMessage -LogPath $context.LogPath
+        Write-WinnowWatchdogEvent -Message $driftMessage -EntryType Warning -EventId 1000
     }
     else {
         Write-WinnowWatchdogLog -Message 'Privacy floor intact, nothing to re-apply.' -LogPath $context.LogPath
