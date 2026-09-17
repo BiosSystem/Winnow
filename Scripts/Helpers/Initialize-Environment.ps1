@@ -6,7 +6,7 @@ $script:Version = if (Get-Variable -Name WINNOW_VERSION -Scope Global -ErrorActi
 } elseif ($WINNOW_VERSION) {
     $WINNOW_VERSION
 } else {
-    "4.1.0"
+    "4.2.0"
 }
 $script:AppVersion = $script:Version
 $rootDir = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
