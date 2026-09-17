@@ -6,11 +6,20 @@
 - Upstream branch: `master`
 - Reviewed commit: `3202466` (upstream `master` head at review time)
 - Reviewed date: 2026-09-12
+- Last re-checked: 2026-09-18 (upstream `master` still `3202466`, no new commits)
 - Previous baseline: `6012b02` (2026-09-05)
-- Winnow release line: `4.0.1`
+- Winnow release line: `4.2.0`
 - Upstream changelog review: July 11 2026 upstream release (dropped CustomAppsList format, retired legacy CLI app removal, fixed Copilot removal, dropped sunset apps)
 
 ## Upstream Review Log
+
+### 2026-09-18 re-check: no change
+
+Re-fetched `upstream/master` from `Raphire/Win11Debloat`. Head is still `3202466` (2026-09-10),
+the commit reviewed on 2026-09-12. No new upstream commits, nothing to reconcile; Winnow is not
+missing any upstream bug or fix. The `ef8811d` error-handling ports under Deferred remain
+deliberately deferred, and `InvokeChanges.ps1` has since been rewritten for automatic rollback, so
+any future port there reconciles against the current implementation, not the pre-rollback one.
 
 ### 2026-09-12 review: `6012b02` to `3202466`
 
