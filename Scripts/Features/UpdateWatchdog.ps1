@@ -1,67 +1,89 @@
+function Set-WinnowWatchdogDirectoryAcl {
+    # Lock the payload directory so only SYSTEM and Administrators can change what
+    # the SYSTEM task later executes. Standard users keep read and execute, nothing
+    # more. Inheritance is turned off so a loosened parent cannot widen it again.
+    # A SYSTEM task that runs a script from a directory non-admins can write to is
+    # a local privilege-escalation path; this closes it.
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path
+    )
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        New-Item -ItemType Directory -Path $Path -Force | Out-Null
+    }
+
+    $acl = New-Object System.Security.AccessControl.DirectorySecurity
+    $acl.SetAccessRuleProtection($true, $false)
+
+    $full = [System.Security.AccessControl.FileSystemRights]::FullControl
+    $readExec = [System.Security.AccessControl.FileSystemRights]::ReadAndExecute
+    $inherit = [System.Security.AccessControl.InheritanceFlags]'ContainerInherit, ObjectInherit'
+    $noProp = [System.Security.AccessControl.PropagationFlags]::None
+    $allow = [System.Security.AccessControl.AccessControlType]::Allow
+
+    $system = New-Object System.Security.Principal.SecurityIdentifier 'S-1-5-18'
+    $admins = New-Object System.Security.Principal.SecurityIdentifier 'S-1-5-32-544'
+    $users = New-Object System.Security.Principal.SecurityIdentifier 'S-1-5-32-545'
+
+    $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($system, $full, $inherit, $noProp, $allow)))
+    $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($admins, $full, $inherit, $noProp, $allow)))
+    $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($users, $readExec, $inherit, $noProp, $allow)))
+
+    Set-Acl -LiteralPath $Path -AclObject $acl
+}
+
+function Resolve-WinnowWatchdogPayloadSource {
+    # The payload ships as Scripts\Watchdog\WatchdogPayload.ps1 next to this file's
+    # parent. It resolves the same way in the modular tree and in the standalone
+    # build, which unpacks the whole Scripts folder before running.
+    $scriptsRoot = Split-Path -Parent $PSScriptRoot
+    Join-Path $scriptsRoot 'Watchdog\WatchdogPayload.ps1'
+}
+
 function Invoke-InstallUpdateWatchdog {
     param (
         [switch]$WhatIf
     )
 
-    $taskName = "Winnow_UpdateWatchdog"
-    $taskPath = "\Winnow"
-    $scriptPath = "$env:ProgramData\Winnow\Watchdog.ps1"
+    $taskName = 'Winnow_UpdateWatchdog'
+    $taskPath = '\Winnow'
+    $watchdogDir = Join-Path $env:ProgramData 'Winnow'
+    $scriptPath = Join-Path $watchdogDir 'Watchdog.ps1'
+    $regPath = 'HKLM:\SOFTWARE\Winnow\Watchdog'
+    $schemaVersion = 2
 
     Write-Host "`n[*] Installing Windows Update Watchdog..." -ForegroundColor Cyan
 
     if ($WhatIf) {
-        Write-Host "  [WhatIf] Would create a Scheduled Task triggered by Windows Update events to monitor telemetry resets." -ForegroundColor Yellow
+        Write-Host "  [WhatIf] Would harden $watchdogDir, deploy the tamper-checked watchdog payload, record its hash under HKLM, and register a Scheduled Task triggered by Windows Update events." -ForegroundColor Yellow
+        return
+    }
+
+    $payloadSource = Resolve-WinnowWatchdogPayloadSource
+    if (-not (Test-Path -LiteralPath $payloadSource)) {
+        Write-Host "  [ERROR] Watchdog payload source is missing: $payloadSource" -ForegroundColor Red
         return
     }
 
     try {
-        # Create directory for the payload
-        if (-not (Test-Path "$env:ProgramData\Winnow")) {
-            New-Item -Path "$env:ProgramData\Winnow" -ItemType Directory -Force | Out-Null
+        # Harden the directory before writing the script the SYSTEM task will run.
+        Set-WinnowWatchdogDirectoryAcl -Path $watchdogDir
+
+        # Deploy the payload verbatim, then record its hash where only an admin or
+        # SYSTEM can write. The payload checks itself against this value and
+        # refuses to enforce anything if it was swapped out.
+        Copy-Item -LiteralPath $payloadSource -Destination $scriptPath -Force
+        $payloadHash = (Get-FileHash -LiteralPath $scriptPath -Algorithm SHA256).Hash
+
+        if (-not (Test-Path -LiteralPath $regPath)) {
+            New-Item -Path $regPath -Force | Out-Null
         }
+        Set-ItemProperty -LiteralPath $regPath -Name 'PayloadSha256' -Value $payloadHash -Type String -Force
+        Set-ItemProperty -LiteralPath $regPath -Name 'SchemaVersion' -Value $schemaVersion -Type DWord -Force
+        Set-ItemProperty -LiteralPath $regPath -Name 'InstalledUtc' -Value ((Get-Date).ToUniversalTime().ToString('o')) -Type String -Force
 
-        # The payload script to run when triggered
-        # Runs as SYSTEM, so it re-applies the settings directly rather than
-        # showing a toast (a session-0 toast never reaches the desktop) or asking
-        # the user to re-run Winnow. Scoped to the two controls Windows Update
-        # most often resets: the AllowTelemetry policy and the DiagTrack service.
-        $watchdogPayload = @'
-$log  = "$env:ProgramData\Winnow\watchdog.log"
-$date = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-function Write-WatchdogLog($message) { Add-Content -Path $log -Value "[$date] $message" }
-
-Write-WatchdogLog "Windows Update event fired. Re-asserting telemetry settings..."
-$reAsserted = @()
-try {
-    $dc = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection"
-    if (-not (Test-Path $dc)) { New-Item -Path $dc -Force | Out-Null }
-    $current = (Get-ItemProperty -Path $dc -Name "AllowTelemetry" -ErrorAction SilentlyContinue).AllowTelemetry
-    if ($current -ne 0) {
-        Set-ItemProperty -Path $dc -Name "AllowTelemetry" -Value 0 -Type DWord -Force
-        $reAsserted += "AllowTelemetry policy"
-    }
-
-    $diagTrack = Get-Service -Name "DiagTrack" -ErrorAction SilentlyContinue
-    if ($diagTrack -and $diagTrack.StartType -ne "Disabled") {
-        Set-Service -Name "DiagTrack" -StartupType Disabled -ErrorAction SilentlyContinue
-        Stop-Service -Name "DiagTrack" -Force -ErrorAction SilentlyContinue
-        $reAsserted += "DiagTrack service"
-    }
-}
-catch {
-    Write-WatchdogLog "ERROR while re-asserting telemetry: $($_.Exception.Message)"
-}
-
-if ($reAsserted.Count -gt 0) {
-    Write-WatchdogLog ("Windows Update had reset: " + ($reAsserted -join ", ") + ". Re-applied.")
-} else {
-    Write-WatchdogLog "Telemetry settings intact, nothing to re-apply."
-}
-'@
-
-        Set-Content -Path $scriptPath -Value $watchdogPayload -Force
-
-        # Remove existing task if it exists
+        # Remove any prior task before re-registering.
         $existingTask = Get-ScheduledTask -TaskName $taskName -TaskPath $taskPath -ErrorAction SilentlyContinue
         if ($existingTask) {
             Unregister-ScheduledTask -TaskName $taskName -TaskPath $taskPath -Confirm:$false
@@ -89,10 +111,10 @@ if ($reAsserted.Count -gt 0) {
         $action = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument "-WindowStyle Hidden -ExecutionPolicy Bypass -File `"$scriptPath`""
         $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
 
-        Register-ScheduledTask -TaskName $taskName -TaskPath $taskPath -Trigger $triggers -Action $action -Principal $principal -Description "Re-asserts Winnow telemetry settings after a Windows update resets them." | Out-Null
+        Register-ScheduledTask -TaskName $taskName -TaskPath $taskPath -Trigger $triggers -Action $action -Principal $principal -Description "Re-asserts Winnow's privacy policy floor after a Windows update resets it." | Out-Null
 
         $triggerDesc = if ($eventTrigger) { "on Windows Update install events, with a daily fallback" } else { "daily (event trigger unavailable)" }
-        Write-Host "  [+] Update Watchdog installed. It runs $triggerDesc and re-applies telemetry settings." -ForegroundColor Green
+        Write-Host "  [+] Update Watchdog installed. It runs $triggerDesc and re-asserts the privacy policy floor." -ForegroundColor Green
     }
     catch {
         Write-Host "  [ERROR] Failed to install Update Watchdog: $_" -ForegroundColor Red

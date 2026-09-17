@@ -4,6 +4,16 @@ Document all notable Winnow changes in this file. Releases before 4.0.0 were pub
 
 Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Reworked the update watchdog so it re-asserts the whole privacy policy floor instead of only the `AllowTelemetry` policy and the `DiagTrack` service. It now also re-applies the Copilot, Recall, Windows AI, generative fill, cross-device clipboard, ink workspace, and OneDrive sync policies, the `dmwappushservice` service, and the CEIP telemetry scheduled tasks, touching only the ones that have drifted. The floor is limited to machine-wide `HKLM` policy keys because a SYSTEM task has no user context.
+
+### Security
+
+- Hardened the watchdog against tampering, since its scheduled task runs the payload as SYSTEM. `%ProgramData%\Winnow` now gets a protected ACL (SYSTEM and Administrators Full Control, standard users read and execute, inheritance off), re-applied on every run, which closes the local privilege-escalation path where a non-admin could replace a script a SYSTEM task executes. The payload's SHA256 is recorded under an admin-only `HKLM` key at install and re-checked before each run; a payload that does not match refuses to enforce and logs a warning, and missing or unreadable state fails closed. The payload ships as `Scripts/Watchdog/WatchdogPayload.ps1` with unit coverage for the ACL, the integrity check, and the drift-only enforcement. The end-to-end path against a real Windows update is still only exercisable in a live environment.
+
 ## [4.1.0] - 2026-09-13
 
 ### Added
