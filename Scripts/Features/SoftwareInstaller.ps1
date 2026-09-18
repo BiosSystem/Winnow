@@ -6,6 +6,20 @@
     Created by Bios-System | https://github.com/BiosSystem/Winnow
 #>
 
+function Get-WingetInstallArguments {
+    # Build the winget install arguments as discrete array elements so Start-Process quotes the
+    # package id on its own. String-interpolating the id into one command line let a crafted id
+    # containing a double quote break out and inject extra winget flags. No caller feeds an untrusted
+    # id today (the list is the curated default or the user's own selection), but keeping the id a
+    # separate argument removes the injection surface entirely.
+    param(
+        [Parameter(Mandatory)]
+        [string]$PackageId
+    )
+
+    return @('install', '--id', $PackageId, '-e', '--accept-package-agreements', '--accept-source-agreements', '--silent')
+}
+
 function Install-Software {
     [CmdletBinding(SupportsShouldProcess)]
     param(
@@ -37,7 +51,7 @@ function Install-Software {
         if ($PSCmdlet.ShouldProcess($app, "Install via Winget")) {
             Write-Host "  Installing $app..."
             try {
-                $process = Start-Process -FilePath "winget" -ArgumentList "install --id `"$app`" -e --accept-package-agreements --accept-source-agreements --silent" -Wait -NoNewWindow -PassThru
+                $process = Start-Process -FilePath "winget" -ArgumentList (Get-WingetInstallArguments -PackageId $app) -Wait -NoNewWindow -PassThru
                 if ($process.ExitCode -eq 0 -or $process.ExitCode -eq 2316632065) {
                     Write-Host "  [OK] Successfully installed $app"
                 } else {

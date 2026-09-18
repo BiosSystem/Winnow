@@ -158,6 +158,15 @@ jobs:
             exit 1
           }
 
+      - name: Run software installer tests
+        shell: pwsh
+        run: |
+          $result = Invoke-Pester -Path "Tests/Unit/Test-SoftwareInstaller.ps1" -Output Detailed -PassThru
+          if ($result.FailedCount -gt 0) {
+            Write-Error "$($result.FailedCount) test(s) failed in Test-SoftwareInstaller.ps1"
+            exit 1
+          }
+
       - name: Run integration tests
         shell: pwsh
         run: |
