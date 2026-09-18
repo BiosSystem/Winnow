@@ -1,3 +1,15 @@
+## [v4.2.3] - 2026-09-18
+### Artifacts
+- **Release Package**: Winnow-v4.2.3.zip
+- **Standalone**: Winnow-Standalone.ps1
+- Both built and published by the release workflow on tag push. Checksums are on the release page.
+### Added
+- `-RemoveDefenderGamingExclusions` reverses `-AddDefenderGamingExclusions`; both share one path list so they cannot drift.
+### Security
+- Pass the winget package id to the software installer as a discrete argument instead of interpolating it into one command line, removing an argument-injection surface (defense-in-depth; no untrusted caller today).
+### Note
+- Both changes were found during a comprehensive security-surface code audit that also produced the 4.2.1 and 4.2.2 fixes.
+
 ## [v4.2.2] - 2026-09-18
 ### Artifacts
 - **Release Package**: Winnow-v4.2.2.zip
