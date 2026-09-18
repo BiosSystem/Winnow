@@ -16,7 +16,7 @@ Winnow is a modular Windows 11 optimization and debloating toolkit. Because Winn
 
 ## Reporting a Vulnerability
 
-Report vulnerabilities to `security@bios-system.net`. Do not open public GitHub issues.
+Report vulnerabilities securely through [GitHub Private Vulnerability Reporting](https://github.com/BiosSystem/Winnow/security/advisories/new). Do not open public GitHub issues.
 
 ---
 
