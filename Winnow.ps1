@@ -145,7 +145,8 @@ param (
     # --- Winnow v3.0.0 Features (Bios-System) ---
     [switch]$EnableFirewallTelemetryBlock,
     [switch]$EnableUpdateWatchdog,
-    [switch]$AddDefenderGamingExclusions
+    [switch]$AddDefenderGamingExclusions,
+    [switch]$RemoveDefenderGamingExclusions
 )
 
 if ($PSVersionTable.PSEdition -eq 'Core') {
@@ -724,6 +725,9 @@ else {
     }
     if ($script:Params.ContainsKey("AddDefenderGamingExclusions")) {
         Invoke-AddDefenderGamingExclusions -WhatIf:$extendedWhatIf
+    }
+    if ($script:Params.ContainsKey("RemoveDefenderGamingExclusions")) {
+        Invoke-RemoveDefenderGamingExclusions -WhatIf:$extendedWhatIf
     }
 }
 
