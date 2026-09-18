@@ -96,6 +96,48 @@ function Resolve-LoadedTargetUserHiveContext {
         -WasLoadedByScript $false)
 }
 
+function Invoke-WinnowRegHiveUnload {
+    # Thin wrapper around `reg unload` so the retry logic in Dismount-WinnowTargetUserHive can be
+    # unit-tested; reg.exe is a native command and cannot be mocked directly. Returns the exit code.
+    param(
+        [Parameter(Mandatory)]
+        [string]$MountName
+    )
+
+    $global:LASTEXITCODE = 0
+    reg unload "HKU\$MountName" | Out-Null
+    return $LASTEXITCODE
+}
+
+function Dismount-WinnowTargetUserHive {
+    # Unloads a hive the script mounted. The registry provider and .NET RegistryKey objects keep
+    # handles open into the hive until they are finalized, and `reg unload` fails while any handle is
+    # still open, which previously left the hive mounted after a Sysprep or per-user run (the apply,
+    # verification, and restore-to-another-user paths all read or write the loaded hive). Force a
+    # garbage collection to release those handles before unloading, and retry once after a second
+    # pass, since a handle can survive the first collect. Returns $true when the hive is unloaded.
+    param(
+        [Parameter(Mandatory)]
+        [string]$MountName
+    )
+
+    [System.GC]::Collect()
+    [System.GC]::WaitForPendingFinalizers()
+    if ((Invoke-WinnowRegHiveUnload -MountName $MountName) -eq 0) {
+        return $true
+    }
+
+    Start-Sleep -Milliseconds 200
+    [System.GC]::Collect()
+    [System.GC]::WaitForPendingFinalizers()
+    if ((Invoke-WinnowRegHiveUnload -MountName $MountName) -eq 0) {
+        return $true
+    }
+
+    Write-Warning "Failed to unload registry hive 'HKU\$MountName' after a retry. It may stay mounted until the next reboot; close any tool browsing HKEY_USERS and re-run, or reboot."
+    return $false
+}
+
 function Invoke-WithTargetUserHive {
     param(
         [Parameter(Mandatory)]
@@ -141,12 +183,7 @@ function Invoke-WithTargetUserHive {
         $script:RegistryTargetHiveMountName = $previousHiveMountName
 
         if ($hiveContext -and $hiveContext.WasLoadedByScript) {
-            $global:LASTEXITCODE = 0
-            reg unload "HKU\$($hiveContext.MountName)" | Out-Null
-            $unloadExitCode = $LASTEXITCODE
-            if ($unloadExitCode -ne 0) {
-                Write-Warning "Failed to unload registry hive 'HKU\$($hiveContext.MountName)' (exit code: $unloadExitCode)"
-            }
+            $null = Dismount-WinnowTargetUserHive -MountName ([string]$hiveContext.MountName)
         }
     }
 }
