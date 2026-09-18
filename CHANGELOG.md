@@ -4,7 +4,7 @@ Document all notable Winnow changes in this file. Releases before 4.0.0 were pub
 
 Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [4.2.1] - 2026-09-18
 
 ### Fixed
 

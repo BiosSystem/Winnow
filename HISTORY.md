@@ -1,3 +1,16 @@
+## [v4.2.1] - 2026-09-18
+### Artifacts
+- **Release Package**: Winnow-v4.2.1.zip
+- **Standalone**: Winnow-Standalone.ps1
+- Both built and published by the release workflow on tag push. Checksums are on the release page.
+### Fixed
+- Unload the target user's registry hive reliably: force a GC to release the .NET RegistryKey handles the apply/verify/restore work opened into the mounted hive, and retry, so `reg unload` no longer fails and leaves the hive mounted (could lock the profile) on `-Sysprep`/`-User` runs.
+- The PowerShell registry writer now applies `qword`, `hex(2)` (REG_EXPAND_SZ), and `hex(7)` (REG_MULTI_SZ) values instead of throwing; the parser and verifier already handled all three, so the writer was the only part out of step.
+### Added
+- Sandbox-only mutating integration tests for Scope B module registry rollback and the update watchdog (real install, ACL lockdown, integrity, policy re-assertion, tamper detection).
+### Known limitation
+- The mutating end-to-end paths are unit-tested and read-path-verified but have not yet been run in Windows Sandbox.
+
 ## [v4.2.0] - 2026-09-17
 ### Artifacts
 - **Release Package**: Winnow-v4.2.0.zip
