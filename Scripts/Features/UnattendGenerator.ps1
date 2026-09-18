@@ -44,10 +44,13 @@ function Generate-UnattendXML {
     } else { "" }
 
     $winSwiftFirstBoot = if (-not [string]::IsNullOrWhiteSpace($WinnowConfigPath)) {
+        # Escape the path for XML like the other user-supplied values, so a legal path containing
+        # &, < or > does not produce an autounattend.xml that Windows Setup silently rejects.
+        $escapedConfigPath = [System.Security.SecurityElement]::Escape($WinnowConfigPath)
         @"
                 <RunSynchronousCommand wcm:action="add">
                     <Order>2</Order>
-                    <Path>powershell.exe -NonInteractive -ExecutionPolicy Bypass -File "C:\Winnow\Winnow-Standalone.ps1" -Config "$WinnowConfigPath"</Path>
+                    <Path>powershell.exe -NonInteractive -ExecutionPolicy Bypass -File "C:\Winnow\Winnow-Standalone.ps1" -Config "$escapedConfigPath"</Path>
                     <Description>Apply Winnow configuration on first boot</Description>
                 </RunSynchronousCommand>
 "@
