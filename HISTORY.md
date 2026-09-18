@@ -1,3 +1,11 @@
+## [v4.2.2] - 2026-09-18
+### Artifacts
+- **Release Package**: Winnow-v4.2.2.zip
+- **Standalone**: Winnow-Standalone.ps1
+- Both built and published by the release workflow on tag push. Checksums are on the release page.
+### Fixed
+- Escape the embedded config path in the generated `autounattend.xml`; a legal path with `&`, `<`, or `>` previously produced a malformed unattend file Windows Setup silently rejects. Found during a full security-surface code audit.
+
 ## [v4.2.1] - 2026-09-18
 ### Artifacts
 - **Release Package**: Winnow-v4.2.1.zip
