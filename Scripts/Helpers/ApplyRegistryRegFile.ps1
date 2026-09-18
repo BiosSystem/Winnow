@@ -27,8 +27,23 @@ function Convert-RegOperationToValueKind {
             $value = [BitConverter]::ToInt32([BitConverter]::GetBytes($unsigned), 0)
             return @{ Name = $valueName; Kind = [Microsoft.Win32.RegistryValueKind]::DWord; Value = $value }
         }
+        'QWord' {
+            # SetValue takes a signed Int64; wrap the parsed unsigned value through its bytes so a
+            # high-bit qword applies with the same bit pattern the parser read.
+            $unsignedQword = [uint64]$Operation.ValueData
+            $qwordValue = [BitConverter]::ToInt64([BitConverter]::GetBytes($unsignedQword), 0)
+            return @{ Name = $valueName; Kind = [Microsoft.Win32.RegistryValueKind]::QWord; Value = $qwordValue }
+        }
         'String' {
             return @{ Name = $valueName; Kind = [Microsoft.Win32.RegistryValueKind]::String; Value = [string]$Operation.ValueData }
+        }
+        'Hex2' {
+            # hex(2) is REG_EXPAND_SZ; the parser already decoded the bytes to a string.
+            return @{ Name = $valueName; Kind = [Microsoft.Win32.RegistryValueKind]::ExpandString; Value = [string]$Operation.ValueData }
+        }
+        'Hex7' {
+            # hex(7) is REG_MULTI_SZ; the parser already decoded the bytes to a string array.
+            return @{ Name = $valueName; Kind = [Microsoft.Win32.RegistryValueKind]::MultiString; Value = [string[]]$Operation.ValueData }
         }
         'Binary' {
             return @{ Name = $valueName; Kind = [Microsoft.Win32.RegistryValueKind]::Binary; Value = [byte[]]$Operation.ValueData }
