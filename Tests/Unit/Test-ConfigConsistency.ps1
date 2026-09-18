@@ -94,7 +94,7 @@ Describe 'Test-ConfigConsistency' {
                 Deployment = @(
                     (New-Setting 'AppRemovalScopeIndex' 2),
                     (New-Setting 'UserSelectionIndex' 1),
-                    (New-Setting 'OtherUsername' 'Matan')
+                    (New-Setting 'OtherUsername' 'SampleUser')
                 )
             }
             Test-ConfigConsistency -Config $config | Should -BeNullOrEmpty
