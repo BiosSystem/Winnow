@@ -6,6 +6,10 @@ Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Ve
 
 ## [Unreleased]
 
+### Fixed
+
+- Unload the target user's registry hive reliably. When a `-Sysprep` or per-user run (apply, verification, or restore-to-another-user) read or wrote the mounted hive through the registry provider, lingering .NET `RegistryKey` handles kept the hive open, so `reg unload` failed and the code only warned while the hive stayed mounted, which can lock the profile. The unload now forces a garbage collection to release those handles and retries once, and only warns if it still cannot unload.
+
 ### Added
 
 - Mutating integration tests (Windows Sandbox only) for the two paths that were previously only unit-tested with mocks: Scope B module registry rollback (`ModuleRegistryRollback.Tests.ps1`, capture and restore against the real registry with type preservation) and the update watchdog (`WatchdogEnforcement.Tests.ps1`, real install, directory lockdown, integrity check, live policy re-assertion, and tamper detection). They run under `-Mutating` and are excluded from CI.
