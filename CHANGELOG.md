@@ -4,6 +4,12 @@ Document all notable Winnow changes in this file. Releases before 4.0.0 were pub
 
 Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Escape the embedded Winnow config path in the generated `autounattend.xml`. `ComputerName` and the local admin name were XML-escaped, but the config path was interpolated raw, so a legal path containing `&`, `<`, or `>` produced a malformed unattend file that Windows Setup silently rejects. All three user-supplied values are now escaped.
+
 ## [4.2.1] - 2026-09-18
 
 ### Fixed
