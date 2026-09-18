@@ -108,3 +108,44 @@ Describe 'Registry files' {
         }
     }
 }
+
+Describe 'Reg operation to value kind' {
+    BeforeAll {
+        $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..\..') | Select-Object -ExpandProperty Path
+        . (Join-Path $repoRoot 'Scripts\Helpers\ApplyRegistryRegFile.ps1')
+    }
+
+    It 'maps a DWord, preserving a high-bit value through the sign wrap' {
+        $result = Convert-RegOperationToValueKind -Operation ([PSCustomObject]@{ ValueName = 'X'; ValueType = 'DWord'; ValueData = [uint32]'0xFFFFFFFF'; KeyPath = 'HKLM:\Test' })
+        $result.Kind | Should -Be ([Microsoft.Win32.RegistryValueKind]::DWord)
+        $result.Value | Should -Be (-1)
+    }
+
+    It 'maps a QWord, preserving a high-bit value' {
+        $result = Convert-RegOperationToValueKind -Operation ([PSCustomObject]@{ ValueName = 'X'; ValueType = 'QWord'; ValueData = [uint64]18446744073709551615; KeyPath = 'HKLM:\Test' })
+        $result.Kind | Should -Be ([Microsoft.Win32.RegistryValueKind]::QWord)
+        $result.Value | Should -Be (-1)
+    }
+
+    It 'maps hex(2) to an expandable string' {
+        $result = Convert-RegOperationToValueKind -Operation ([PSCustomObject]@{ ValueName = 'X'; ValueType = 'Hex2'; ValueData = '%SystemRoot%\test'; KeyPath = 'HKLM:\Test' })
+        $result.Kind | Should -Be ([Microsoft.Win32.RegistryValueKind]::ExpandString)
+        $result.Value | Should -Be '%SystemRoot%\test'
+    }
+
+    It 'maps hex(7) to a multi-string' {
+        $result = Convert-RegOperationToValueKind -Operation ([PSCustomObject]@{ ValueName = 'X'; ValueType = 'Hex7'; ValueData = @('one', 'two'); KeyPath = 'HKLM:\Test' })
+        $result.Kind | Should -Be ([Microsoft.Win32.RegistryValueKind]::MultiString)
+        @($result.Value).Count | Should -Be 2
+        $result.Value[0] | Should -Be 'one'
+    }
+
+    It 'maps a String and Binary' {
+        (Convert-RegOperationToValueKind -Operation ([PSCustomObject]@{ ValueName = 'X'; ValueType = 'String'; ValueData = 'hi'; KeyPath = 'HKLM:\Test' })).Kind | Should -Be ([Microsoft.Win32.RegistryValueKind]::String)
+        (Convert-RegOperationToValueKind -Operation ([PSCustomObject]@{ ValueName = 'X'; ValueType = 'Binary'; ValueData = [byte[]](1, 2, 3); KeyPath = 'HKLM:\Test' })).Kind | Should -Be ([Microsoft.Win32.RegistryValueKind]::Binary)
+    }
+
+    It 'throws on a genuinely unsupported type' {
+        { Convert-RegOperationToValueKind -Operation ([PSCustomObject]@{ ValueName = 'X'; ValueType = 'Nonsense'; ValueData = 1; KeyPath = 'HKLM:\Test' }) } | Should -Throw
+    }
+}
