@@ -6,6 +6,10 @@ Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Ve
 
 ## [Unreleased]
 
+### Added
+
+- `-RemoveDefenderGamingExclusions` reverses `-AddDefenderGamingExclusions`. The gaming exclusions could be added but not removed through Winnow, which was out of step with the tool's reversibility. Both operations now share one path list (`Get-DefenderGamingExclusionPaths`) so they cannot drift, and the remove clears every path even if the game directory no longer exists.
+
 ### Security
 
 - Pass the winget package id to the software installer as a discrete argument instead of interpolating it into one command line. A crafted id containing a double quote could otherwise have injected extra winget flags. No caller feeds an untrusted id today (the list is the curated default or the user's own selection), so this is defense-in-depth that removes the injection surface. Covered by `Test-SoftwareInstaller.ps1`.
