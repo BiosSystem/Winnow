@@ -4,6 +4,12 @@ Document all notable Winnow changes in this file. Releases before 4.0.0 were pub
 
 Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Security
+
+- Pass the winget package id to the software installer as a discrete argument instead of interpolating it into one command line. A crafted id containing a double quote could otherwise have injected extra winget flags. No caller feeds an untrusted id today (the list is the curated default or the user's own selection), so this is defense-in-depth that removes the injection surface. Covered by `Test-SoftwareInstaller.ps1`.
+
 ## [4.2.2] - 2026-09-18
 
 ### Fixed
