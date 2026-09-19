@@ -287,7 +287,7 @@ Use `-SkipExplorerRestart` to defer the Explorer restart. Use `-NoAutoRollback` 
 
 ## 🤝 Contributing & License
 
-Read the [Contributing Guidelines](CONTRIBUTING.md) before submitting a pull request.
+Read the [Contributing Guidelines](CONTRIBUTING.md) before submitting a pull request. Participation is governed by our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 Review [upstream credits](CREDITS.md) before redistributing a modified build.
 

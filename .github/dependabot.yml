@@ -1,0 +1,13 @@
+version: 2
+updates:
+  # Keep the GitHub Actions used by the test and release workflows current.
+  # This is the only ecosystem Winnow depends on; the tool itself is
+  # dependency-free Windows PowerShell.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: ""
+    labels:
+      - "dependencies"

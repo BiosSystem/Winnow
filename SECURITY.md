@@ -8,7 +8,8 @@ Winnow is a modular Windows 11 optimization and debloating toolkit. Because Winn
 
 | Version | Supported | Status |
 |---|---|---|
-| `4.0.x` | Yes | Active production release for Windows 11 (24H2, 25H2). Current Winnow line |
+| `4.2.x` | Yes | Active production release for Windows 11 (24H2, 25H2). Current Winnow line. 4.2.1 through 4.2.3 carry the 2026 security-hardening cycle (watchdog ACL/integrity anchor, standalone elevate-first extraction, winget argument isolation, reliable user-hive unload) |
+| `4.0.x` - `4.1.x` | No | Superseded by 4.2. Predate the watchdog and standalone privilege-escalation fixes |
 | `3.x` | No | Superseded by 4.0. Published under the former name, WinSwift; 3.3.x and earlier also carried the elevation-guard bug fixed in 3.4.0 |
 | `< 3.0` | No | Legacy baseline |
 
@@ -39,3 +40,15 @@ Report vulnerabilities securely through [GitHub Private Vulnerability Reporting]
 
 ### 6. Automatic Rollback
 - A failed apply restores the registry backup taken before the run instead of leaving the system half-changed. Exit code `3` reports a clean rollback, `4` reports a rollback that itself failed and names the backup file for manual recovery.
+
+### 7. Standalone Extraction Runs Elevated
+- The single-file `Winnow-Standalone.ps1` checks for administrator rights before it unpacks anything. If not elevated it relaunches itself through UAC and only then extracts, into a fresh directory whose ACL is locked to Administrators and SYSTEM with inheritance disabled. Earlier builds extracted as the standard user and self-elevated afterward, so the elevated run dot-sourced scripts from a directory the standard user still controlled. That local privilege-escalation path is closed.
+
+### 8. Update Watchdog Integrity
+- The optional update watchdog runs its payload as SYSTEM on a scheduled trigger. Its directory under `%ProgramData%\Winnow` carries a protected ACL (SYSTEM and Administrators full control, users read and execute, inheritance off) re-applied on every install, and the payload's SHA256 is recorded in an administrator-only `HKLM\SOFTWARE\Winnow\Watchdog` key. The payload verifies that hash before it enforces anything and fails closed if the check does not match, so a tampered payload does not run. Integrity failures and corrected drift are written to the Windows event log (source `Winnow`) for auditing. `-VerifyWatchdog` reports health read-only.
+
+### 9. Argument Isolation for External Tools
+- The software installer passes each winget package id as a discrete argument rather than interpolating it into a single command line, so a crafted id cannot inject extra flags. The generated `autounattend.xml` XML-escapes every user-supplied value, including the embedded config path, so a legal path containing `&`, `<`, or `>` cannot break the unattend file.
+
+### 10. Reliable Offline Hive Handling
+- Per-user and Sysprep runs that mount another profile's registry hive force a garbage collection to release lingering .NET registry handles before `reg unload`, and retry once. Earlier builds could leave the hive mounted and only warn, which risked locking the profile.
