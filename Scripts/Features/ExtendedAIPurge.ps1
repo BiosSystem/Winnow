@@ -76,13 +76,26 @@ function Disable-ExtendedAIPurge {
         Write-Host "  [OK] Cloud clipboard sync disabled"
     }
 
-    # 6. Disable Recall snapshot folder (Copilot+ PC)
-    if ($PSCmdlet.ShouldProcess("Registry", "Disable Recall")) {
+    # 6. Disable Recall, Click to Do and the Settings agent (WindowsAI policies).
+    # Per the WindowsAI policy CSP, DisableAIDataAnalysis and DisableClickToDo are
+    # both machine and user scoped, so set them in HKLM and HKCU; AllowRecallEnablement
+    # and DisableSettingsAgent are machine scoped only. Click to Do (screen analysis)
+    # and the agentic Settings search are 24H2/25H2 additions not covered before.
+    if ($PSCmdlet.ShouldProcess("Registry", "Disable Recall, Click to Do and Settings agent")) {
+        $windowsAiKeys = @(
+            "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsAI",
+            "HKCU:\SOFTWARE\Policies\Microsoft\Windows\WindowsAI"
+        )
+        foreach ($aiKey in $windowsAiKeys) {
+            if (-not (Test-Path $aiKey)) { New-Item -Path $aiKey -Force | Out-Null }
+            Set-ItemProperty -Path $aiKey -Name "DisableAIDataAnalysis" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $aiKey -Name "DisableClickToDo" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
+        }
+        # Machine-scoped only.
         $recallPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsAI"
-        if (-not (Test-Path $recallPath)) { New-Item -Path $recallPath -Force | Out-Null }
-        Set-ItemProperty -Path $recallPath -Name "DisableAIDataAnalysis" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
         Set-ItemProperty -Path $recallPath -Name "AllowRecallEnablement" -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue
-        Write-Host "  [OK] Windows Recall snapshots fully disabled"
+        Set-ItemProperty -Path $recallPath -Name "DisableSettingsAgent" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
+        Write-Host "  [OK] Recall snapshots, Click to Do and Settings agent disabled"
     }
 
     # 6b. Remove the Recall optional component where present. Since KB5041865
@@ -164,6 +177,18 @@ function Disable-ExtendedAIPurge {
         Write-Host "  [OK] Narrator AI online voices disabled"
     }
 
+    # 14. Disable the Paint AI features (Cocreator, generative fill, Image Creator).
+    # These are the documented WindowsAI/Paint policies at the Paint policy key,
+    # separate from the Photos generative-fill key handled in step 7.
+    if ($PSCmdlet.ShouldProcess("Registry", "Disable Paint AI features")) {
+        $paintPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Paint"
+        if (-not (Test-Path $paintPath)) { New-Item -Path $paintPath -Force | Out-Null }
+        Set-ItemProperty -Path $paintPath -Name "DisableCocreator" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path $paintPath -Name "DisableGenerativeFill" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path $paintPath -Name "DisableImageCreator" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
+        Write-Host "  [OK] Paint AI features (Cocreator, generative fill, Image Creator) disabled"
+    }
+
     Write-Host ""
     Write-Host "Extended AI purge complete." -ForegroundColor Green
     Write-Host ""
@@ -205,8 +230,15 @@ function Get-ExtendedAIPurgeRegistryTargets {
         @{ Path = 'HKCU:\Software\Microsoft\Clipboard'; Name = 'EnableCloudClipboard' }
         @{ Path = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System'; Name = 'AllowCrossDeviceClipboard' }
         @{ Path = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsAI'; Name = 'DisableAIDataAnalysis' }
+        @{ Path = 'HKCU:\SOFTWARE\Policies\Microsoft\Windows\WindowsAI'; Name = 'DisableAIDataAnalysis' }
+        @{ Path = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsAI'; Name = 'DisableClickToDo' }
+        @{ Path = 'HKCU:\SOFTWARE\Policies\Microsoft\Windows\WindowsAI'; Name = 'DisableClickToDo' }
         @{ Path = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsAI'; Name = 'AllowRecallEnablement' }
+        @{ Path = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsAI'; Name = 'DisableSettingsAgent' }
         @{ Path = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Photos'; Name = 'DisableGenerativeFill' }
+        @{ Path = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Paint'; Name = 'DisableCocreator' }
+        @{ Path = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Paint'; Name = 'DisableGenerativeFill' }
+        @{ Path = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Paint'; Name = 'DisableImageCreator' }
         @{ Path = 'HKCU:\Software\Microsoft\Clipboard'; Name = 'EnableSuggestedClipboardActions' }
         @{ Path = 'HKLM:\SOFTWARE\Policies\Microsoft\Office\16.0\Common'; Name = 'PreventProductInstall' }
         @{ Path = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot'; Name = 'TurnOffWindowsCopilot' }

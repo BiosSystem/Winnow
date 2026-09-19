@@ -90,6 +90,8 @@ Describe 'Winnow update watchdog desired-state floor' {
         $names | Should -Contain 'AllowTelemetry'
         $names | Should -Contain 'TurnOffWindowsCopilot'
         $names | Should -Contain 'DisableAIDataAnalysis'
+        $names | Should -Contain 'DisableClickToDo'
+        $names | Should -Contain 'DisableSettingsAgent'
     }
 }
 
