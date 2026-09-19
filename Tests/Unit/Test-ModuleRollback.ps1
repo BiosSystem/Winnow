@@ -227,6 +227,20 @@ Describe 'Module registry targets' {
         $names = @((Get-ExtendedAIPurgeRegistryTargets).Name)
         $names | Should -Contain 'TurnOffWindowsCopilot'
         $names | Should -Contain 'AllowRecallEnablement'
+        # 24H2/25H2 additions.
+        $names | Should -Contain 'DisableClickToDo'
+        $names | Should -Contain 'DisableSettingsAgent'
+        $names | Should -Contain 'DisableCocreator'
+        $names | Should -Contain 'DisableImageCreator'
+    }
+
+    It 'ExtendedAIPurge declares both scopes for the user-and-machine AI policies' {
+        $targets = @(Get-ExtendedAIPurgeRegistryTargets)
+        $clickToDo = @($targets | Where-Object { $_.Name -eq 'DisableClickToDo' })
+        ($clickToDo | Where-Object { $_.Path -like 'HKLM:*' }) | Should -Not -BeNullOrEmpty
+        ($clickToDo | Where-Object { $_.Path -like 'HKCU:*' }) | Should -Not -BeNullOrEmpty
+        $paint = @($targets | Where-Object { $_.Path -like '*\Policies\Paint' -and $_.Name -eq 'DisableGenerativeFill' })
+        $paint | Should -Not -BeNullOrEmpty
     }
 
     It 'every Set-ItemProperty name in each module is declared by its provider (drift guard)' {
