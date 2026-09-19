@@ -47,6 +47,7 @@ jobs:
             "README.md",
             "CHANGELOG.md",
             "CONTRIBUTING.md",
+            "CODE_OF_CONDUCT.md",
             "CREDITS.md",
             "SECURITY.md",
             "UPSTREAM.md",
