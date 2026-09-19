@@ -1,0 +1,39 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.12.0.schema.json
+#
+# BLOCKER (verified locally with `winget validate`): winget's portable nested
+# installer accepts ONLY a .exe RelativeFilePath. Run.bat, Winnow.ps1, and any
+# script extension are rejected ("The file type of the referenced file is not
+# allowed"). Winnow ships no executable, so it cannot be published to winget
+# as-is. See Publishing/README.md for the two options. This manifest is written
+# for option (a): a small launcher, Winnow.exe, is added to the release zip and
+# starts Winnow.ps1. Until that launcher exists this manifest will not validate.
+#
+# Winnow is a PowerShell script tree, so it is packaged as a zip whose nested
+# portable entry point (once it exists) is Winnow.exe, aliased to `winnow`.
+#
+# BEFORE SUBMITTING:
+#   1. Add the Winnow.exe launcher to the release zip (see README option a).
+#   2. Set PackageVersion to the release being published.
+#   3. Point InstallerUrl at that release's Winnow-v<version>.zip asset.
+#   4. Replace InstallerSha256 with the real hash. The release workflow rebuilds
+#      the artifact on the runner, so compute the hash against the PUBLISHED
+#      asset, not a local build:
+#        (Get-FileHash .\Winnow-v<version>.zip -Algorithm SHA256).Hash
+#      or let `wingetcreate update BiosSystem.Winnow` fill it in.
+
+PackageIdentifier: BiosSystem.Winnow
+PackageVersion: 4.2.3
+Platform:
+  - Windows.Desktop
+MinimumOSVersion: 10.0.22000.0
+InstallerType: zip
+Installers:
+  - Architecture: neutral
+    InstallerUrl: https://github.com/BiosSystem/Winnow/releases/download/v4.2.3/Winnow-v4.2.3.zip
+    InstallerSha256: 0000000000000000000000000000000000000000000000000000000000000000
+    NestedInstallerType: portable
+    NestedInstallerFiles:
+      - RelativeFilePath: Winnow.exe
+        PortableCommandAlias: winnow
+ManifestType: installer
+ManifestVersion: 1.12.0
