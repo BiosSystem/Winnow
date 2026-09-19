@@ -1,0 +1,3 @@
+# The launcher is compiled from source at build time; never commit the binary.
+Winnow.exe
+*.pdb
