@@ -10,6 +10,8 @@ Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Ve
 
 - Extended AI purge now covers the AI features Microsoft added across the 24H2/25H2 cycle: Click to Do (`DisableClickToDo`), the agentic Settings search (`DisableSettingsAgent`), and the Paint AI features Cocreator, generative fill, and Image Creator (`DisableCocreator`, `DisableGenerativeFill`, `DisableImageCreator` under the Paint policy key). `DisableAIDataAnalysis` and `DisableClickToDo` are written in both HKLM and HKCU, matching their machine-and-user policy scope. The update watchdog re-asserts the two new machine-wide WindowsAI policies after an update. Registry paths and scopes are from the WindowsAI policy CSP. Not yet verified against a real 24H2/25H2 Copilot+ device; the values and rollback coverage are unit-tested.
 
+## [4.2.3] - 2026-09-18
+
 ### Added
 
 - `-RemoveDefenderGamingExclusions` reverses `-AddDefenderGamingExclusions`. The gaming exclusions could be added but not removed through Winnow, which was out of step with the tool's reversibility. Both operations now share one path list (`Get-DefenderGamingExclusionPaths`) so they cannot drift, and the remove clears every path even if the game directory no longer exists.
