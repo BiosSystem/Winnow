@@ -40,6 +40,19 @@ function Invoke-FeatureApply {
             'DisableTelemetryServices' {
                 Disable-TelemetryServices
             }
+            'DisableFeatureUpdates' {
+                # The .reg seeds TargetReleaseVersionInfo with a fixed release, but the
+                # feature pins the device to whatever version it is on now. Rewrite it
+                # from the running DisplayVersion so a 25H2 machine pins to 25H2, not the
+                # literal in the file. Quality and security updates are unaffected.
+                if (-not ($script:Params.ContainsKey('WhatIf') -or $script:Params.ContainsKey('DryRun'))) {
+                    $displayVersion = Get-WinnowWindowsDisplayVersion
+                    if (-not [string]::IsNullOrWhiteSpace($displayVersion)) {
+                        Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate' -Name 'TargetReleaseVersionInfo' -Value $displayVersion -Type String -Force -ErrorAction SilentlyContinue
+                        Write-Host "  Pinned feature updates to the current release ($displayVersion)"
+                    }
+                }
+            }
         }
         return
     }

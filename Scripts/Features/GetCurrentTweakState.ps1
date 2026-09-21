@@ -44,6 +44,12 @@ function Test-FeatureApplied {
     $feature = $script:Features[$FeatureId]
 
     switch ($FeatureId) {
+        'DisableFeatureUpdates' {
+            # The applied target release is computed at apply time, so the static .reg
+            # value cannot be read back literally. Use the same dynamic check as
+            # verification, which compares the pin against the running release.
+            return (Test-WinnowFeatureUpdatePinState)
+        }
         'DisableWidgets' {
             # Widgets packages cannot be reinstalled automatically, so we treat their
             # absence as the applied state (checked) and presence as not-yet-applied.
