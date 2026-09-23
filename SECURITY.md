@@ -8,7 +8,8 @@ Winnow is a modular Windows 11 optimization and debloating toolkit. Because Winn
 
 | Version | Supported | Status |
 |---|---|---|
-| `4.2.x` | Yes | Active production release for Windows 11 (24H2, 25H2). Current Winnow line. 4.2.1 through 4.2.3 carry the 2026 security-hardening cycle (watchdog ACL/integrity anchor, standalone elevate-first extraction, winget argument isolation, reliable user-hive unload) |
+| `4.3.x` | Yes | Active production release for Windows 11 (24H2, 25H2). Current Winnow line. Carries the 4.2 security-hardening cycle, plus a working `-VerifyWatchdog` health check (it reported every watchdog as not installed in 4.2.x) and the first release whose rollback and watchdog paths were exercised end to end in Windows Sandbox |
+| `4.2.x` | No | Superseded by 4.3. 4.2.1 through 4.2.3 introduced the security-hardening cycle (watchdog ACL/integrity anchor, standalone elevate-first extraction, winget argument isolation, reliable user-hive unload), but `-VerifyWatchdog` could not find the watchdog task |
 | `4.0.x` - `4.1.x` | No | Superseded by 4.2. Predate the watchdog and standalone privilege-escalation fixes |
 | `3.x` | No | Superseded by 4.0. Published under the former name, WinSwift; 3.3.x and earlier also carried the elevation-guard bug fixed in 3.4.0 |
 | `< 3.0` | No | Legacy baseline |
