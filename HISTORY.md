@@ -1,3 +1,19 @@
+## [v4.3.0] - 2026-09-23
+### Artifacts
+- **Release Package**: Winnow-v4.3.0.zip
+- **Standalone**: Winnow-Standalone.ps1
+- Both built and published by the release workflow on tag push. Checksums are on the release page.
+### Added
+- Extended AI purge covers Click to Do, the agentic Settings search, and the Paint AI features (Cocreator, generative fill, Image Creator), with paths and scopes from the WindowsAI policy CSP; the update watchdog re-asserts the new machine-wide policies. Not yet verified on a Copilot+ device.
+### Fixed
+- `DisableTelemetryServices` failed every apply and undo because its script was never loaded; it is part of the `privacy-max` preset.
+- The run summary was never written because its script was never loaded; it is now written for every real apply and reports rolled-back features truthfully.
+- `-VerifyWatchdog` reported every watchdog as not installed (scheduled task folder path lacked the trailing backslash Task Scheduler stores); re-installing also failed to replace the old task.
+- Block feature version upgrades pins to the release the device is on instead of a hard-coded 24H2.
+- The registry fallback writer no longer reports success after skipping access-denied writes.
+### Note
+- First release whose mutating paths (automatic rollback, dry-run safety, Scope B module rollback, watchdog install/enforcement/tamper) passed end to end in Windows Sandbox: 30 passed, 0 failed, 1 skipped by design. The run found the four script-loading, watchdog, and writer bugs above. Still not exercised: the watchdog firing on a real Windows Update event.
+
 ## [v4.2.3] - 2026-09-18
 ### Artifacts
 - **Release Package**: Winnow-v4.2.3.zip
