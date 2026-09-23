@@ -153,3 +153,33 @@ Describe 'Winnow startup safety guards' {
         $script:launcherScript | Should -Match 'Exit \$exitCode'
     }
 }
+
+Describe 'Winnow script loading' {
+    BeforeAll {
+        $script:loadRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+        $entry = Get-Content (Join-Path $script:loadRoot 'Winnow.ps1') -Raw
+        # Both forms the entry script uses: . (Join-Path $PSScriptRoot 'Scripts\...')
+        # and . "$PSScriptRoot/Scripts/...".
+        $pattern = '(?m)^\s*\.\s+(?:\(Join-Path \$PSScriptRoot ''|")(?:\$PSScriptRoot/)?(Scripts[\\/][^''"]+\.ps1)'
+        $script:loadedScripts = @([regex]::Matches($entry, $pattern) | ForEach-Object {
+                ($_.Groups[1].Value -replace '/', '\').ToLowerInvariant()
+            })
+    }
+
+    It 'dot-sources every script under Scripts apart from the ones kept out by design' {
+        # A script that is never dot-sourced defines functions nothing can call.
+        # ExportRunSummary.ps1 and TelemetryServices.ps1 were in that state: the
+        # run summary was never written and DisableTelemetryServices failed with
+        # "command not found". Get.ps1 is the download launcher and
+        # WatchdogPayload.ps1 is copied to ProgramData for the scheduled task, so
+        # neither belongs in the Winnow process.
+        $notLoadedByDesign = @('scripts\get.ps1', 'scripts\watchdog\watchdogpayload.ps1')
+        $unloaded = @(Get-ChildItem -LiteralPath (Join-Path $script:loadRoot 'Scripts') -Recurse -Filter '*.ps1' | ForEach-Object {
+                $relative = $_.FullName.Substring($script:loadRoot.Length + 1).ToLowerInvariant()
+                if ($relative -notin $script:loadedScripts -and $relative -notin $notLoadedByDesign) { $relative }
+            })
+
+        $script:loadedScripts.Count | Should -BeGreaterThan 50 -Because 'the dot-source pattern must actually match the entry script'
+        $unloaded | Should -BeNullOrEmpty -Because "not dot-sourced by Winnow.ps1: $($unloaded -join ', ')"
+    }
+}

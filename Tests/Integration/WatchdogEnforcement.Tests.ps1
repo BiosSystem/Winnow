@@ -29,19 +29,22 @@ Describe 'Winnow update watchdog (live)' -Tag 'Mutating' -Skip:(-not $script:wdE
         . (Join-Path $script:repoRoot 'Scripts\Features\UpdateWatchdog.ps1')
         . (Join-Path $script:repoRoot 'Scripts\Watchdog\WatchdogPayload.ps1')
         $script:context = Get-WinnowWatchdogContext
+        # Same identity the installer and -VerifyWatchdog use, so the test cannot
+        # look in a different folder than the product does.
+        $script:taskIdentity = Get-WinnowWatchdogTaskIdentity
 
         Invoke-InstallUpdateWatchdog
     }
 
     AfterAll {
-        try { Unregister-ScheduledTask -TaskName 'Winnow_UpdateWatchdog' -TaskPath '\Winnow' -Confirm:$false -ErrorAction SilentlyContinue } catch { }
+        try { Unregister-ScheduledTask -TaskName $script:taskIdentity.Name -TaskPath $script:taskIdentity.Path -Confirm:$false -ErrorAction SilentlyContinue } catch { }
         try { Remove-Item -LiteralPath $script:context.Directory -Recurse -Force -ErrorAction SilentlyContinue } catch { }
         try { Remove-Item -LiteralPath 'HKLM:\SOFTWARE\Winnow' -Recurse -Force -ErrorAction SilentlyContinue } catch { }
         try { if ([System.Diagnostics.EventLog]::SourceExists('Winnow')) { [System.Diagnostics.EventLog]::DeleteEventSource('Winnow') } } catch { }
     }
 
     It 'registers the SYSTEM task and reports healthy' {
-        $task = Get-ScheduledTask -TaskName 'Winnow_UpdateWatchdog' -TaskPath '\Winnow' -ErrorAction SilentlyContinue
+        $task = Get-ScheduledTask -TaskName $script:taskIdentity.Name -TaskPath $script:taskIdentity.Path -ErrorAction SilentlyContinue
         $task | Should -Not -BeNullOrEmpty
         $task.Principal.UserId | Should -Match 'SYSTEM'
 
@@ -50,6 +53,17 @@ Describe 'Winnow update watchdog (live)' -Tag 'Mutating' -Skip:(-not $script:wdE
         $health.IntegrityOk   | Should -BeTrue
         $health.AclLockedDown | Should -BeTrue
         $health.Healthy       | Should -BeTrue
+    }
+
+    It 're-installs over an existing task instead of colliding with it' {
+        # With the folder path missing its trailing backslash the installer never
+        # found the task it had registered, so it never removed it and the second
+        # Register-ScheduledTask ran into the existing one.
+        $output = & { Invoke-InstallUpdateWatchdog } *>&1 | Out-String
+
+        $output | Should -Not -Match '\[ERROR\]'
+        $output | Should -Not -Match 'already exists'
+        (Get-WinnowWatchdogHealth).Installed | Should -BeTrue
     }
 
     It 'locks the payload directory so standard users cannot write it' {

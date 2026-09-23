@@ -25,6 +25,7 @@ Write-Host 'Winnow integration suite, Windows Sandbox' -ForegroundColor Cyan
 Write-Host ''
 
 $exitCode = 1
+$runStart = Get-Date
 try {
     if (-not (Test-Path -LiteralPath $resultRoot)) {
         throw "The results folder is not mapped at $resultRoot. Check the second MappedFolder in Winnow-Tests.wsb, and that its HostFolder exists on the host."
@@ -52,6 +53,8 @@ try {
     Write-Host 'Running the full suite, including mutating tests...' -ForegroundColor Yellow
     Write-Host ''
 
+    # The suite reports failing tests through its exit code, not by throwing, so a
+    # normal test failure is judged here rather than landing in the catch below.
     & "$working\Tests\Integration\Invoke-IntegrationTests.ps1" -Mutating -ResultPath $resultRoot
     $exitCode = $LASTEXITCODE
 
@@ -68,14 +71,20 @@ catch {
     Write-Host "Sandbox run failed before the suite completed: $($_.Exception.Message)" -ForegroundColor Red
 
     # Record it in the results folder as well, so a bootstrap failure is not
-    # invisible once the window is gone.
+    # invisible once the window is gone. Never replace a summary the suite wrote
+    # during this run: that file holds the per-test results the run exists for.
     if (Test-Path -LiteralPath $resultRoot) {
+        $summaryPath = Join-Path $resultRoot 'integration-summary.json'
+        $suiteWroteSummary = (Test-Path -LiteralPath $summaryPath) -and
+            ((Get-Item -LiteralPath $summaryPath).LastWriteTime -ge $runStart)
+        $bootstrapPath = if ($suiteWroteSummary) { Join-Path $resultRoot 'bootstrap-error.json' } else { $summaryPath }
+
         [ordered]@{
             RanAt = (Get-Date).ToString('o')
             BootstrapError = $_.Exception.Message
             ScriptStackTrace = $_.ScriptStackTrace
         } | ConvertTo-Json -Depth 4 |
-            Out-File -FilePath (Join-Path $resultRoot 'integration-summary.json') -Encoding UTF8 -Force
+            Out-File -FilePath $bootstrapPath -Encoding UTF8 -Force
     }
 }
 finally {

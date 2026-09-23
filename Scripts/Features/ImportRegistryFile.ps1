@@ -34,7 +34,7 @@ function ImportRegistryFile {
 
         if ($usePowerShellFallbackOnly) {
             Invoke-RegistryOperationsFromRegFile -RegFilePath $targetRegFilePath
-            Write-Host "The operation completed successfully via PowerShell registry writer."
+            Write-RegistryFallbackResult
             Write-Host ""
             return
         }
@@ -90,7 +90,7 @@ function ImportRegistryFile {
             $details = if ($regResult.Error) { $regResult.Error } else { "Exit code: $($regResult.ExitCode)" }
             Write-Warning "reg import failed for '$path'. Falling back to PowerShell registry writer. Details: $details"
             Invoke-RegistryOperationsFromRegFile -RegFilePath $targetRegFilePath
-            Write-Host "The operation completed successfully via PowerShell registry writer."
+            Write-RegistryFallbackResult
         }
 
         Write-Host ""

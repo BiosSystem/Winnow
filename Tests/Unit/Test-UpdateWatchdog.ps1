@@ -228,3 +228,26 @@ Describe 'Winnow update watchdog health' {
         $health.Healthy | Should -BeFalse
     }
 }
+
+Describe 'Winnow update watchdog task identity' {
+    It 'names the task folder with the trailing backslash Task Scheduler stores' {
+        $identity = Get-WinnowWatchdogTaskIdentity
+        $identity.Name | Should -Be 'Winnow_UpdateWatchdog'
+        $identity.Path | Should -Be '\Winnow\'
+    }
+
+    It 'looks the task up under the stored folder path, not the bare folder name' {
+        # On a real system Get-ScheduledTask -TaskPath '\Winnow' matches nothing,
+        # which a mock that accepts any path cannot show. This one answers only
+        # the exact stored path, the way Task Scheduler does.
+        Mock -CommandName Get-ScheduledTask -MockWith { $null }
+        Mock -CommandName Get-ScheduledTask -MockWith { [PSCustomObject]@{ TaskName = 'Winnow_UpdateWatchdog' } } -ParameterFilter { $TaskPath -eq '\Winnow\' }
+        Mock -CommandName Get-ScheduledTaskInfo -MockWith { [PSCustomObject]@{ LastRunTime = (Get-Date); LastTaskResult = 0 } }
+        Mock -CommandName Get-ItemProperty -MockWith { $null }
+        Mock -CommandName Test-Path -MockWith { $false }
+
+        $health = Get-WinnowWatchdogHealth
+
+        $health.Installed | Should -BeTrue
+    }
+}

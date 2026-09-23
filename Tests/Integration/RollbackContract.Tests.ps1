@@ -8,9 +8,19 @@
     Scenarios 3 and 4 of Track 3 in the v3.4.0 plan, and the reason Track 3
     landed before Track 1: without these, auto-rollback is an untested claim.
 
-    Failure is injected by copying the repository and corrupting one .reg file
-    in the copy, so the failure happens inside the import step rather than in
-    the harness, and the real repository is never modified.
+    Failure is injected by copying the repository and replacing one .reg file in
+    the copy with a single write to a child key under a parent that denies
+    subkey creation. The backup phase only reads, so it succeeds and records the
+    child as absent; the apply phase then fails with access denied inside the
+    real import step, which is the failure a rollback exists for.
+
+    The replacement has to be total. The PowerShell registry writer skips an
+    individual access-denied write with a warning and only treats the import as
+    failed when it cannot apply anything in the file, so one denied write mixed
+    into allowed ones is a partial apply, not a failed import. Deleting the .reg
+    file does not work either: the backup phase parses every selected .reg file
+    first and correctly refuses to start, so the run never reaches the apply.
+    The real repository is never modified.
 
     The corrupted feature is not the one under observation. Telemetry values are
     written successfully first, then the second feature's import fails, so a
@@ -31,6 +41,40 @@ Describe 'Winnow automatic rollback' -Tag 'Mutating' -Skip:(-not $script:Rollbac
         . (Join-Path $script:repoRoot 'Scripts\Helpers\Get-RegFileOperations.ps1')
 
         $script:watchedRegFile = Join-Path $script:repoRoot 'Regfiles\Disable_Telemetry.reg'
+        $script:brokenFeatureRegFile = Join-Path $script:repoRoot 'Regfiles\Disable_Copilot.reg'
+
+        # What these values were before this file ran, restored after every test
+        # so a test that leaves an apply in place cannot skew the next one.
+        $script:pristineTelemetry = Get-RegFileValueSnapshot -RegFilePath $script:watchedRegFile
+        $script:pristineBrokenFeature = Get-RegFileValueSnapshot -RegFilePath $script:brokenFeatureRegFile
+
+        # A parent key nothing may create subkeys under. Reads are unaffected, so
+        # the backup phase can snapshot the child (absent); the apply cannot create it.
+        # The ACL is changed through .NET with exactly ChangePermissions and
+        # ReadPermissions. Get-Acl/Set-Acl -LiteralPath cannot find registry paths
+        # in Windows PowerShell 5.1, and Set-Acl opens the key for write, which
+        # includes create-subkey, so it could not undo this deny afterwards.
+        $script:lockedParentSubKey = 'Software\WinnowIntegrationLocked'
+        $script:lockedChildReg = 'HKEY_CURRENT_USER\Software\WinnowIntegrationLocked\InjectedFailure'
+        $script:aclRights = [System.Security.AccessControl.RegistryRights]'ChangePermissions, ReadPermissions'
+        $script:denyCreateSubKey = New-Object System.Security.AccessControl.RegistryAccessRule(
+            (New-Object System.Security.Principal.SecurityIdentifier 'S-1-1-0'),
+            [System.Security.AccessControl.RegistryRights]::CreateSubKey,
+            [System.Security.AccessControl.InheritanceFlags]::None,
+            [System.Security.AccessControl.PropagationFlags]::None,
+            [System.Security.AccessControl.AccessControlType]::Deny)
+
+        [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey($script:lockedParentSubKey).Close()
+        $lockKey = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($script:lockedParentSubKey,
+            [Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree, $script:aclRights)
+        try {
+            $security = $lockKey.GetAccessControl()
+            $security.AddAccessRule($script:denyCreateSubKey)
+            $lockKey.SetAccessControl($security)
+        }
+        finally {
+            $lockKey.Close()
+        }
 
         <#
             Copies the repository and breaks one feature's .reg file, then runs
@@ -50,10 +94,12 @@ Describe 'Winnow automatic rollback' -Tag 'Mutating' -Skip:(-not $script:Rollbac
                 throw "Cannot inject a failure: $target is missing from the copy."
             }
 
-            # Removing the file makes ImportRegistryFile throw, which is the
-            # harsher of the two failure paths and the one that used to escape
-            # Invoke-AllChanges entirely.
-            Remove-Item -LiteralPath $target -Force
+            # Replace the file with one write under the locked parent, written as
+            # UTF-16 with a BOM like the shipped .reg files. reg import fails on
+            # it and the PowerShell writer can apply nothing in it, so the import
+            # counts as failed rather than as a partial apply.
+            $injected = "Windows Registry Editor Version 5.00`r`n`r`n[$($script:lockedChildReg)]`r`n`"Value`"=dword:00000001`r`n"
+            Set-Content -LiteralPath $target -Value $injected -Encoding Unicode
 
             $entry = Join-Path $sandboxRoot 'Winnow.ps1'
             $quoted = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ('"{0}"' -f $entry)) + $Arguments
@@ -77,6 +123,27 @@ Describe 'Winnow automatic rollback' -Tag 'Mutating' -Skip:(-not $script:Rollbac
                 Stdout = $stdout
                 Stderr = $stderr
             }
+        }
+    }
+
+    AfterEach {
+        Restore-RegFileValueSnapshot -RegFilePath $script:watchedRegFile -Snapshot $script:pristineTelemetry
+        Restore-RegFileValueSnapshot -RegFilePath $script:brokenFeatureRegFile -Snapshot $script:pristineBrokenFeature
+    }
+
+    AfterAll {
+        $unlockKey = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($script:lockedParentSubKey,
+            [Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree, $script:aclRights)
+        if ($unlockKey) {
+            try {
+                $security = $unlockKey.GetAccessControl()
+                [void]$security.RemoveAccessRule($script:denyCreateSubKey)
+                $unlockKey.SetAccessControl($security)
+            }
+            finally {
+                $unlockKey.Close()
+            }
+            [Microsoft.Win32.Registry]::CurrentUser.DeleteSubKeyTree($script:lockedParentSubKey, $false)
         }
     }
 
@@ -146,7 +213,8 @@ Describe 'Winnow automatic rollback' -Tag 'Mutating' -Skip:(-not $script:Rollbac
                 -Arguments @('-Silent', '-CLI', '-DisableTelemetry', '-DisableCopilot', '-SkipRegistryBackup')
 
             $result.Stdout | Should -Match '-SkipRegistryBackup disables automatic rollback'
-            $result.Stdout | Should -Match 'no registry backup is available'
+            # The failure-time line covers the registry and module backups alike.
+            $result.Stdout | Should -Match 'no backup is available'
         }
     }
 
@@ -174,11 +242,19 @@ Describe 'Winnow automatic rollback' -Tag 'Mutating' -Skip:(-not $script:Rollbac
     Context 'dry runs' {
 
         It 'never restores anything under -DryRun' {
+            $before = Get-RegFileValueSnapshot -RegFilePath $script:watchedRegFile
+
+            # The injected fault only fails on a write, and a dry run writes
+            # nothing, so the run completes cleanly and has nothing to restore.
             $result = Invoke-WinnowWithBrokenFeature -BreakRegFile 'Disable_Copilot.reg' `
                 -Arguments @('-DryRun', '-Silent', '-CLI', '-DisableTelemetry', '-DisableCopilot')
 
             $result.Stdout | Should -Not -Match 'Rolling back registry changes'
             $result.ExitCode | Should -Be 0
+
+            $after = Get-RegFileValueSnapshot -RegFilePath $script:watchedRegFile
+            $changed = Compare-RegValueSnapshot -Before $before -After $after
+            $changed | Should -BeNullOrEmpty -Because "a dry run must not change the registry: $($changed -join '; ')"
         }
     }
 }

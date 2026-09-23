@@ -145,3 +145,49 @@ function Compare-RegValueSnapshot {
 
     return @($changed)
 }
+
+<#
+    Puts every value a .reg file sets back to what a Get-RegFileValueSnapshot of
+    that file recorded: values that were absent are removed, the rest are written
+    back with the type the .reg file declares. Mutating tests share one Sandbox
+    registry, so a test that leaves an apply in place (no backup, or rollback
+    disabled on purpose) must not change what the next test starts from.
+#>
+function Restore-RegFileValueSnapshot {
+    param(
+        [Parameter(Mandatory)][string]$RegFilePath,
+        [Parameter(Mandatory)][hashtable]$Snapshot
+    )
+
+    foreach ($operation in @(Get-RegFileOperations -regFilePath $RegFilePath)) {
+        if ($operation.OperationType -ne 'SetValue') { continue }
+
+        $psPath = $operation.KeyPath `
+            -replace '^HKEY_LOCAL_MACHINE', 'HKLM:' `
+            -replace '^HKEY_CURRENT_USER', 'HKCU:'
+        if ($psPath -notmatch '^(HKLM|HKCU):') { continue }
+        if ([string]::IsNullOrEmpty($operation.ValueName)) { continue }
+
+        $key = '{0}\{1}' -f $psPath, $operation.ValueName
+        if (-not $Snapshot.ContainsKey($key)) { continue }
+
+        $original = $Snapshot[$key]
+        if ($null -eq $original) {
+            Remove-ItemProperty -LiteralPath $psPath -Name $operation.ValueName -ErrorAction SilentlyContinue
+            continue
+        }
+
+        $type = switch ([string]$operation.ValueType) {
+            'DWord' { 'DWord' }
+            'QWord' { 'QWord' }
+            'Binary' { 'Binary' }
+            'Hex2' { 'ExpandString' }
+            'Hex7' { 'MultiString' }
+            default { 'String' }
+        }
+        if (-not (Test-Path -LiteralPath $psPath)) {
+            New-Item -Path $psPath -Force | Out-Null
+        }
+        Set-ItemProperty -LiteralPath $psPath -Name $operation.ValueName -Value $original -Type $type -Force
+    }
+}

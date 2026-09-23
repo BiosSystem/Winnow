@@ -320,6 +320,8 @@ if (-not $script:WingetInstalled -and -not $Silent) {
 . "$PSScriptRoot/Scripts/Features/RestoreRegistryBackup.ps1"
 . "$PSScriptRoot/Scripts/Features/StoreSearchSuggestions.ps1"
 . "$PSScriptRoot/Scripts/Features/TelemetryScheduledTasks.ps1"
+. "$PSScriptRoot/Scripts/Features/TelemetryServices.ps1"
+. "$PSScriptRoot/Scripts/Features/ExportRunSummary.ps1"
 . "$PSScriptRoot/Scripts/Features/WindowsOptionalFeatures.ps1"
 . "$PSScriptRoot/Scripts/Features/ImportRegistryFile.ps1"
 . "$PSScriptRoot/Scripts/Features/ReplaceStartMenu.ps1"

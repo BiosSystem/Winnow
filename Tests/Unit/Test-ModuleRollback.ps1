@@ -263,3 +263,65 @@ Describe 'Module registry targets' {
         }
     }
 }
+
+Describe 'Run summary' {
+
+    BeforeAll {
+        $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..\..') | Select-Object -ExpandProperty Path
+        . (Join-Path $repoRoot 'Scripts\Features\ExportRunSummary.ps1')
+
+        function Invoke-SummaryExport {
+            param([datetime]$Start)
+            Export-RunSummary -AppliedFeatureIds @('DisableTelemetry', 'DisableCopilot') -UndoneFeatureIds @() `
+                -StartTime $Start -WinnowVersion 'test'
+            $path = Join-Path $TestDrive ('Winnow_RunSummary_{0}.json' -f $Start.ToString('yyyyMMdd_HHmmss'))
+            return (Get-Content -LiteralPath $path -Raw | ConvertFrom-Json)
+        }
+    }
+
+    BeforeEach {
+        $script:savedTemp = $env:TEMP
+        $env:TEMP = $TestDrive
+        Mock Write-Host { }
+    }
+
+    AfterEach {
+        $env:TEMP = $script:savedTemp
+        $script:RunRollbackOutcome = $null
+        $script:RunRollbackReason = $null
+        $script:RunRegistryBackupPath = $null
+        $script:RegistryImportFailures = 0
+    }
+
+    It 'does not report features as applied after a clean rollback' {
+        $script:RunRollbackOutcome = 'RolledBack'
+        $script:RunRollbackReason = '1 registry import change(s) failed'
+        $script:RunRegistryBackupPath = 'C:\backup.json'
+        $script:RegistryImportFailures = 1
+
+        $summary = Invoke-SummaryExport -Start (Get-Date).AddMinutes(-2)
+
+        @($summary.FeaturesApplied.Status | Select-Object -Unique) | Should -Be @('RolledBack')
+        $summary.Rollback.Outcome | Should -Be 'RolledBack'
+        $summary.Rollback.Triggered | Should -BeTrue
+        $summary.RegistryImportFailures | Should -Be 1
+        $summary.ErrorCount | Should -Be 1
+    }
+
+    It 'reports the state as unknown when the rollback itself failed' {
+        $script:RunRollbackOutcome = 'RollbackFailed'
+
+        $summary = Invoke-SummaryExport -Start (Get-Date).AddMinutes(-3)
+
+        @($summary.FeaturesApplied.Status | Select-Object -Unique) | Should -Be @('Unknown')
+    }
+
+    It 'reports features as applied when nothing was rolled back' {
+        $script:RunRollbackOutcome = 'None'
+
+        $summary = Invoke-SummaryExport -Start (Get-Date).AddMinutes(-4)
+
+        @($summary.FeaturesApplied.Status | Select-Object -Unique) | Should -Be @('Applied')
+        $summary.Rollback.Triggered | Should -BeFalse
+    }
+}
