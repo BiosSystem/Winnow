@@ -149,3 +149,43 @@ Describe 'Reg operation to value kind' {
         { Convert-RegOperationToValueKind -Operation ([PSCustomObject]@{ ValueName = 'X'; ValueType = 'Nonsense'; ValueData = 1; KeyPath = 'HKLM:\Test' }) } | Should -Throw
     }
 }
+
+Describe 'Registry fallback writer result' {
+    BeforeAll {
+        $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..\..') | Select-Object -ExpandProperty Path
+        . (Join-Path $repoRoot 'Scripts\Helpers\ApplyRegistryRegFile.ps1')
+        # Get-RegFileOperations lives in another helper; a stub lets it be mocked.
+        function Get-RegFileOperations { param($regFilePath) }
+    }
+
+    BeforeEach {
+        $script:Params = @{}
+        Mock Get-RegFileOperations { @([PSCustomObject]@{ OperationType = 'SetValue' }, [PSCustomObject]@{ OperationType = 'SetValue' }) }
+        Mock Write-RegistryOperationAccessDeniedWarning { }
+        Mock Write-Warning { }
+        Mock Write-Host { }
+    }
+
+    It 'does not report success when a write was skipped because access was denied' {
+        $script:writeCalls = 0
+        Mock Invoke-RegistryOperation {
+            $script:writeCalls++
+            if ($script:writeCalls -eq 2) { throw [System.UnauthorizedAccessException]::new('denied') }
+        }
+
+        Invoke-RegistryOperationsFromRegFile -RegFilePath 'x.reg'
+        Write-RegistryFallbackResult
+
+        Should -Invoke Write-Host -Times 1 -Exactly -ParameterFilter { $Object -like '*1 setting(s) skipped*' }
+        Should -Invoke Write-Host -Times 0 -Exactly -ParameterFilter { $Object -like '*completed successfully*' }
+    }
+
+    It 'reports success when every write applied' {
+        Mock Invoke-RegistryOperation { }
+
+        Invoke-RegistryOperationsFromRegFile -RegFilePath 'x.reg'
+        Write-RegistryFallbackResult
+
+        Should -Invoke Write-Host -Times 1 -Exactly -ParameterFilter { $Object -like '*completed successfully*' }
+    }
+}

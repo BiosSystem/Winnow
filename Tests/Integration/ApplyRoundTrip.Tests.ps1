@@ -99,3 +99,37 @@ Describe 'Winnow apply round trip' -Tag 'Mutating' {
         $result.Stderr | Should -Match 'Unknown feature'
     }
 }
+
+Describe 'Winnow code-implemented feature round trip' -Tag 'Mutating' {
+
+    BeforeAll {
+        . (Join-Path $PSScriptRoot 'IntegrationCommon.ps1')
+        $script:servicesProfile = Join-Path $TestDrive 'services.json'
+        @{ Switches = @('DisableTelemetryServices') } | ConvertTo-Json |
+            Set-Content -LiteralPath $script:servicesProfile -Encoding utf8
+    }
+
+    It 'applies a feature implemented in code, not a .reg file, and reports it compliant' -Skip:(-not $script:IsElevated) {
+        # DisableTelemetryServices has no .reg file; its apply and undo live in
+        # TelemetryServices.ps1. Winnow.ps1 once did not load that file, so every
+        # apply died with "command not found" and was rolled back.
+        $apply = Invoke-WinnowProcess -Arguments @('-Silent', '-CLI', '-DisableTelemetryServices') -TimeoutSeconds 300
+        $apply.TimedOut | Should -BeFalse
+        $apply.Stdout | Should -Not -Match 'Rolling back'
+        $apply.ExitCode | Should -Be 0
+        (Get-Service -Name 'DiagTrack').StartType | Should -Be 'Disabled'
+
+        # The run summary is written at the end of every real apply.
+        $apply.Stdout | Should -Match 'Run summary saved to'
+
+        $verify = Invoke-WinnowProcess -Arguments @('-Verify', '-VerifyProfile', $script:servicesProfile)
+        $verify.Stdout | Should -Match 'Compliant\] DisableTelemetryServices'
+    }
+
+    It 'reverses it through -Undo' -Skip:(-not $script:IsElevated) {
+        $undo = Invoke-WinnowProcess -Arguments @('-Silent', '-CLI', '-Undo', 'DisableTelemetryServices') -TimeoutSeconds 300
+        $undo.TimedOut | Should -BeFalse
+        $undo.ExitCode | Should -Be 0
+        (Get-Service -Name 'DiagTrack').StartType | Should -Not -Be 'Disabled'
+    }
+}

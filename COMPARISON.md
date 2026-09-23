@@ -100,10 +100,11 @@ that can fail, be checked, and be maintained.
 
 - Winnow is Windows 11 only. It does not support Windows 10.
 - Its scope is debloat, telemetry, and hardening. It does not install applications or build images.
-- The mutating rollback and watchdog paths are covered by unit tests with mocks and by read-only
-  checks of the real system, but the full apply-fail-restore cycle and a live watchdog run against a
-  real Windows update have not yet been exercised in Windows Sandbox. This is stated in the release
-  notes as a known limitation.
+- The full apply-fail-restore rollback cycle and the watchdog's install, lockdown, integrity check,
+  drift correction, and tamper handling are exercised against a real Windows system in the Windows
+  Sandbox integration suite. What has not been exercised is the watchdog being triggered by an
+  actual Windows Update event; its re-assertion logic is tested, but the update-event trigger itself
+  is only observable on a machine that installs a real update.
 - It is a young, single-maintainer project without an independent security audit.
 
 ## Sources

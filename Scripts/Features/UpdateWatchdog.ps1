@@ -41,13 +41,26 @@ function Resolve-WinnowWatchdogPayloadSource {
     Join-Path $scriptsRoot 'Watchdog\WatchdogPayload.ps1'
 }
 
+function Get-WinnowWatchdogTaskIdentity {
+    # The one place the watchdog task's name and folder are defined, so install,
+    # health, and the tests cannot drift apart. The path must end with a
+    # backslash: Task Scheduler stores folders as '\Winnow\', and
+    # Get-ScheduledTask -TaskPath '\Winnow' matches nothing, which is what made
+    # -VerifyWatchdog report a healthy install as not installed.
+    [PSCustomObject]@{
+        Name = 'Winnow_UpdateWatchdog'
+        Path = '\Winnow\'
+    }
+}
+
 function Invoke-InstallUpdateWatchdog {
     param (
         [switch]$WhatIf
     )
 
-    $taskName = 'Winnow_UpdateWatchdog'
-    $taskPath = '\Winnow'
+    $taskIdentity = Get-WinnowWatchdogTaskIdentity
+    $taskName = $taskIdentity.Name
+    $taskPath = $taskIdentity.Path
     $watchdogDir = Join-Path $env:ProgramData 'Winnow'
     $scriptPath = Join-Path $watchdogDir 'Watchdog.ps1'
     $regPath = 'HKLM:\SOFTWARE\Winnow\Watchdog'
@@ -142,8 +155,9 @@ function Get-WinnowWatchdogHealth {
     [CmdletBinding()]
     param()
 
-    $taskName = 'Winnow_UpdateWatchdog'
-    $taskPath = '\Winnow'
+    $taskIdentity = Get-WinnowWatchdogTaskIdentity
+    $taskName = $taskIdentity.Name
+    $taskPath = $taskIdentity.Path
     $watchdogDir = Join-Path $env:ProgramData 'Winnow'
     $scriptPath = Join-Path $watchdogDir 'Watchdog.ps1'
     $regPath = 'HKLM:\SOFTWARE\Winnow\Watchdog'

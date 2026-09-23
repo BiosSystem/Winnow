@@ -120,9 +120,25 @@ if (-not [string]::IsNullOrWhiteSpace($ResultPath)) {
     # A readable summary alongside the XML, including the name and message of
     # every failure, so a Sandbox run can be diagnosed after the window is gone.
     $failures = @($result.Tests | Where-Object { $_.Result -eq 'Failed' } | ForEach-Object {
+        $message = (@($_.ErrorRecord) | ForEach-Object { $_.Exception.Message }) -join "`n"
+        if ([string]::IsNullOrWhiteSpace($message)) {
+            # A test that never ran because a BeforeAll above it failed carries no
+            # error of its own; the cause is recorded under BlockFailures.
+            $message = 'Did not run: a setup block above it failed. See BlockFailures.'
+        }
         [ordered]@{
             Name = $_.ExpandedPath
-            Message = ($_.ErrorRecord | ForEach-Object { $_.ToString() }) -join "`n"
+            Message = $message
+        }
+    })
+
+    # Failed BeforeAll/AfterAll blocks. Without these, a broken setup shows up
+    # only as a list of tests that did not run, with the actual error in the
+    # transcript.
+    $blockFailures = @($result.FailedBlocks | ForEach-Object {
+        [ordered]@{
+            Name = $_.ExpandedPath
+            Message = (@($_.ErrorRecord) | ForEach-Object { $_.Exception.Message }) -join "`n"
         }
     })
 
@@ -136,6 +152,7 @@ if (-not [string]::IsNullOrWhiteSpace($ResultPath)) {
         Skipped = $result.SkippedCount
         Total = $result.TotalCount
         Failures = $failures
+        BlockFailures = $blockFailures
     } | ConvertTo-Json -Depth 6 | Out-File -FilePath (Join-Path $ResultPath 'integration-summary.json') -Encoding UTF8 -Force
 
     Write-Host ("Results written to {0}" -f $ResultPath)
@@ -146,7 +163,10 @@ if ($PassThru) {
 }
 
 if ($result.FailedCount -gt 0) {
-    Write-Error ("{0} integration test(s) failed." -f $result.FailedCount)
+    # Failing tests are a normal outcome, reported through the exit code. This
+    # script runs under Stop, so Write-Error here would throw into the caller
+    # (the Sandbox bootstrap) and read as the harness itself breaking.
+    Write-Host ("{0} integration test(s) failed." -f $result.FailedCount) -ForegroundColor Red
     exit 1
 }
 

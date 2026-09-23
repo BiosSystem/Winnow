@@ -52,10 +52,18 @@ That needs a reboot. Check whether it is already on with
 `Test-Path C:\Windows\System32\WindowsSandbox.exe`.
 
 Results land in `Sandbox\results` on the host: `integration-results.xml` (NUnit),
-`integration-summary.json` (counts plus the name and message of every failure),
-and `sandbox-transcript.log`. Nothing else survives the sandbox closing, console
-output included, so a run whose bootstrap fails is still diagnosable from the
-transcript and the summary.
+`integration-summary.json` (counts, the name and message of every failed test,
+and `BlockFailures` for any `BeforeAll`/`AfterAll` that failed, which is where the
+cause lives when tests report that they did not run), and `sandbox-transcript.log`.
+If the bootstrap itself fails before the suite writes its summary, the error goes
+into the summary; if it fails afterwards, it goes into `bootstrap-error.json` so
+the per-test results are not overwritten. Nothing else survives the sandbox
+closing, console output included.
+
+Only one sandbox can run at a time. After closing one, wait until the
+`vmmemWindowsSandbox` process has exited before starting the next: a sandbox
+started while the previous VM is still tearing down can boot without its mapped
+folders, and the run then never starts or writes anything.
 
 Requires Pester 5.7.1 or later. Winnow refuses to run without elevation, so an
 unelevated session will skip most cases and say so.

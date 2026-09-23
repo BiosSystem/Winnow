@@ -674,8 +674,10 @@ function Invoke-AllChanges {
         Write-Host "  [WARN] App removals could not be verified (winget list unavailable); some may not have succeeded." -ForegroundColor Yellow
     }
 
-    # Export run summary JSON to %TEMP% for later review
-    if ($script:RunStartTime -and (Get-Command Export-RunSummary -ErrorAction SilentlyContinue)) {
+    # Export run summary JSON to %TEMP% for later review. A dry run changes
+    # nothing, so it writes no report that would list its features as applied.
+    if ($script:RunStartTime -and -not $script:Params.ContainsKey('WhatIf') -and
+        (Get-Command Export-RunSummary -ErrorAction SilentlyContinue)) {
         $version = if ($script:AppVersion) { $script:AppVersion } else { 'Unknown' }
         Export-RunSummary `
             -AppliedFeatureIds $applyIds `

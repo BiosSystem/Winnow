@@ -215,6 +215,9 @@ function Invoke-RegistryOperationsFromRegFile {
     )
 
     $accessDeniedCount = 0
+    # Read by Write-RegistryFallbackResult. Kept out of the pipeline so the three
+    # call sites in ImportRegistryFile do not start emitting a count.
+    $script:LastRegistryFallbackSkipCount = 0
     $operations = @(Get-RegFileOperations -regFilePath $RegFilePath)
     $totalOperations = $operations.Count
 
@@ -239,5 +242,20 @@ function Invoke-RegistryOperationsFromRegFile {
 
     if ($accessDeniedCount -gt 0) {
         Write-Warning "Registry fallback import completed with $accessDeniedCount access-restricted operation(s) skipped in '$RegFilePath'."
+    }
+
+    $script:LastRegistryFallbackSkipCount = $accessDeniedCount
+}
+
+function Write-RegistryFallbackResult {
+    # A skipped write is tolerated (one protected key should not fail the whole
+    # feature), but it is not in effect, so the closing line must not say the
+    # import completed successfully.
+    $skipped = [int]$script:LastRegistryFallbackSkipCount
+    if ($skipped -gt 0) {
+        Write-Host "The PowerShell registry writer applied this file with $skipped setting(s) skipped because access was denied; those settings are not in effect." -ForegroundColor Yellow
+    }
+    else {
+        Write-Host "The operation completed successfully via PowerShell registry writer."
     }
 }

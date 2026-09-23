@@ -3,8 +3,8 @@
     Generates a JSON run summary after a Winnow apply or undo operation.
 .DESCRIPTION
     Collects the operation results, system metadata, and elapsed time, then
-    writes a timestamped JSON file to %TEMP%. The GUI surfaces this via a
-    "View Last Report" button in the completion modal.
+    writes a timestamped JSON file (Winnow_RunSummary_<timestamp>.json) to
+    %TEMP% and prints its path. It is not written for a dry run.
     Created by Bios-System | https://github.com/BiosSystem/Winnow
 #>
 
@@ -52,12 +52,20 @@ function Export-RunSummary {
         "$($reg.ProductName) $($reg.DisplayVersion)"
     } catch { 'Unknown' }
 
-    # Build applied feature detail list
+    # Build applied feature detail list. After a rollback nothing requested is
+    # left in effect (or, if the rollback itself failed, its state is unknown),
+    # so those features must not be reported as applied.
+    $rollbackOutcome = if ($script:RunRollbackOutcome) { [string]$script:RunRollbackOutcome } else { 'None' }
+    $appliedStatus = switch ($rollbackOutcome) {
+        'RolledBack' { 'RolledBack' }
+        'RollbackFailed' { 'Unknown' }
+        default { 'Applied' }
+    }
     $appliedDetails = foreach ($id in $AppliedFeatureIds) {
         $errEntry = $FeatureErrors | Where-Object { $_.FeatureId -eq $id } | Select-Object -First 1
         [ordered]@{
             FeatureId = $id
-            Status    = if ($errEntry) { 'Error' } else { 'Applied' }
+            Status    = if ($errEntry) { 'Error' } else { $appliedStatus }
             Error     = if ($errEntry) { $errEntry.Message } else { $null }
         }
     }
@@ -86,10 +94,11 @@ function Export-RunSummary {
             VerificationUnavailable = $AppVerificationUnavailable
         }
         TotalFeaturesChanged = $AppliedFeatureIds.Count + $UndoneFeatureIds.Count
-        ErrorCount           = $FeatureErrors.Count + @($FailedApps).Count
+        RegistryImportFailures = [int]$script:RegistryImportFailures
+        ErrorCount           = $FeatureErrors.Count + @($FailedApps).Count + [int]$script:RegistryImportFailures
         Rollback             = [ordered]@{
             # None, RolledBack, RollbackFailed, or Skipped.
-            Outcome    = if ($script:RunRollbackOutcome) { $script:RunRollbackOutcome } else { 'None' }
+            Outcome    = $rollbackOutcome
             Triggered  = ($script:RunRollbackOutcome -in @('RolledBack', 'RollbackFailed'))
             Reason     = $script:RunRollbackReason
             BackupPath = $script:RunRegistryBackupPath
@@ -102,16 +111,5 @@ function Export-RunSummary {
         Write-Host "  [Report] Run summary saved to: $outPath" -ForegroundColor DarkGray
     } catch {
         Write-Host "  [WARN] Could not save run summary: $_" -ForegroundColor Yellow
-    }
-
-    # Store path on script scope so the GUI can surface it
-    $script:LastRunSummaryPath = $outPath
-}
-
-function Open-LastRunSummary {
-    if (-not [string]::IsNullOrWhiteSpace($script:LastRunSummaryPath) -and (Test-Path $script:LastRunSummaryPath)) {
-        Start-Process notepad.exe -ArgumentList $script:LastRunSummaryPath
-    } else {
-        Write-Host "No run summary available yet." -ForegroundColor DarkGray
     }
 }
