@@ -1509,6 +1509,7 @@
       "UndoLabel": "Allow Windows feature version upgrades",
       "ApplyUndoText": "Allowing Windows feature version upgrades",
       "RegistryUndoKey": "Enable_Feature_Updates.reg",
+      "VerificationAdapter": "FeatureUpdatePin",
       "MinVersion": null,
       "MaxVersion": null
     },

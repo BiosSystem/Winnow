@@ -400,6 +400,46 @@ function Test-WinnowEdgeRemovedState {
     return $true
 }
 
+function Get-WinnowWindowsDisplayVersion {
+    # The friendly feature-update release of the running OS ("24H2", "25H2", ...).
+    # Returns $null when the value is absent (older builds predate DisplayVersion),
+    # so callers can decide how to degrade rather than assuming a version.
+    try {
+        $value = (Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -Name 'DisplayVersion' -ErrorAction Stop).DisplayVersion
+        if ([string]::IsNullOrWhiteSpace($value)) { return $null }
+        return [string]$value
+    }
+    catch {
+        return $null
+    }
+}
+
+function Test-WinnowFeatureUpdatePinState {
+    # DisableFeatureUpdates pins the device to its current feature release. The
+    # target version is written at apply time from the running DisplayVersion, so
+    # it cannot be checked against a fixed literal. Compliant means the pin is on
+    # (TargetReleaseVersion = 1) and points at the release the device is on.
+    $path = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate'
+    try {
+        $props = Get-ItemProperty -Path $path -ErrorAction Stop
+    }
+    catch {
+        return $false
+    }
+
+    if ([int]$props.TargetReleaseVersion -ne 1) { return $false }
+
+    $current = Get-WinnowWindowsDisplayVersion
+    if ([string]::IsNullOrWhiteSpace($current)) {
+        # DisplayVersion is unavailable, so the target cannot be confirmed against
+        # it; treat a set target as compliant rather than failing on a value we
+        # cannot compare.
+        return -not [string]::IsNullOrWhiteSpace([string]$props.TargetReleaseVersionInfo)
+    }
+
+    return ([string]$props.TargetReleaseVersionInfo -eq $current)
+}
+
 function Test-WinnowCustomFeatureState {
     [CmdletBinding()]
     param(
@@ -417,6 +457,7 @@ function Test-WinnowCustomFeatureState {
         'TelemetryFirewall' { return (Test-WinnowTelemetryFirewallState) }
         'StartLayout' { return (Test-WinnowStartLayoutState -FeatureId $FeatureId) }
         'EdgeRemoved' { return (Test-WinnowEdgeRemovedState) }
+        'FeatureUpdatePin' { return (Test-WinnowFeatureUpdatePinState) }
         default { throw "Unknown verification adapter: $Adapter" }
     }
 }
@@ -453,7 +494,19 @@ function Test-WinnowFeature {
 
     try {
         $feature = $script:Features[$FeatureId]
-        $adapter = if ($feature.RegistryKey) { 'CurrentFeatureState' } else { [string]$feature.VerificationAdapter }
+        # A declared adapter wins even when the feature also has a RegistryKey, so a
+        # reg-file feature whose applied value is computed at run time (not a fixed
+        # literal in the .reg) can verify through custom logic instead of a static
+        # read-back. Features with only a RegistryKey keep the automatic read-back.
+        $adapter = if (-not [string]::IsNullOrWhiteSpace($feature.VerificationAdapter)) {
+            [string]$feature.VerificationAdapter
+        }
+        elseif ($feature.RegistryKey) {
+            'CurrentFeatureState'
+        }
+        else {
+            ''
+        }
         if ([string]::IsNullOrWhiteSpace($adapter)) {
             return New-WinnowVerificationResult -FeatureId $FeatureId -Target $FeatureId -Status Unsupported -Details 'No desired-state test is defined for this custom feature.'
         }

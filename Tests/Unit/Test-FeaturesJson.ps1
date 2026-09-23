@@ -95,6 +95,7 @@ Describe 'Features.json' {
             'AppxAbsence',
             'StartLayout',
             'EdgeRemoved',
+            'FeatureUpdatePin',
             'NotApplicable'
         )
         $invalid = $script:features | Where-Object {

@@ -10,6 +10,10 @@ Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Ve
 
 - Extended AI purge now covers the AI features Microsoft added across the 24H2/25H2 cycle: Click to Do (`DisableClickToDo`), the agentic Settings search (`DisableSettingsAgent`), and the Paint AI features Cocreator, generative fill, and Image Creator (`DisableCocreator`, `DisableGenerativeFill`, `DisableImageCreator` under the Paint policy key). `DisableAIDataAnalysis` and `DisableClickToDo` are written in both HKLM and HKCU, matching their machine-and-user policy scope. The update watchdog re-asserts the two new machine-wide WindowsAI policies after an update. Registry paths and scopes are from the WindowsAI policy CSP. Not yet verified against a real 24H2/25H2 Copilot+ device; the values and rollback coverage are unit-tested.
 
+### Fixed
+
+- Block feature version upgrades now pins to the release the device is actually on. The `DisableFeatureUpdates` reg file hard-coded `TargetReleaseVersionInfo` to `24H2`, so on a 25H2 machine the pin named an older release than the one installed. The applied value is now written from the running `DisplayVersion` at apply time, and verification (and the GUI applied-state read) compare the pin against the current release instead of a fixed literal. Quality and security updates are unaffected, so this does not interfere with Known Issue Rollback, which rides on quality updates.
+
 ## [4.2.3] - 2026-09-18
 
 ### Added
