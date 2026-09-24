@@ -4,6 +4,13 @@ Document all notable Winnow changes in this file. Releases before 4.0.0 were pub
 
 Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Undoing "Disable Store search suggestions" failed with access denied. The undo removes the Everyone deny rule the feature puts on each user's `store.db` and then deletes the file, but the rule check was a `try` statement inside plain parentheses, which Windows PowerShell parses as a call to a command named `try`. It failed on every undo, the deny rule stayed, and deleting the file was then refused, so the feature could not be reverted through Winnow. Covered by `Test-StoreSearchSuggestions.ps1`, which runs the disable and undo against a real file.
+- Two new build checks scan every script Winnow loads: one fails if a PowerShell keyword is being invoked as a command, the other if any call resolves to neither a Winnow function, a cmdlet, nor one of the external programs Winnow deliberately runs. The second is what found the bug above; the codebase has no other call to a missing command.
+
 ## [4.3.0] - 2026-09-23
 
 ### Added

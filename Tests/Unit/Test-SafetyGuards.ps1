@@ -164,6 +164,22 @@ Describe 'Winnow script loading' {
         $script:loadedScripts = @([regex]::Matches($entry, $pattern) | ForEach-Object {
                 ($_.Groups[1].Value -replace '/', '\').ToLowerInvariant()
             })
+
+        # Every function the loaded scripts define, and every command they call.
+        $script:definedFunctions = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+        $script:commandCalls = New-Object System.Collections.Generic.List[object]
+        foreach ($relative in @('winnow.ps1') + $script:loadedScripts) {
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $script:loadRoot $relative), [ref]$null, [ref]$null)
+            foreach ($definition in $ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true)) {
+                [void]$script:definedFunctions.Add($definition.Name)
+            }
+            foreach ($call in $ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.CommandAst] }, $true)) {
+                $name = $call.GetCommandName()
+                if ($name) {
+                    $script:commandCalls.Add([PSCustomObject]@{ Name = $name; Where = ('{0}:{1}' -f $relative, $call.Extent.StartLineNumber) })
+                }
+            }
+        }
     }
 
     It 'dot-sources every script under Scripts apart from the ones kept out by design' {
@@ -181,5 +197,31 @@ Describe 'Winnow script loading' {
 
         $script:loadedScripts.Count | Should -BeGreaterThan 50 -Because 'the dot-source pattern must actually match the entry script'
         $unloaded | Should -BeNullOrEmpty -Because "not dot-sourced by Winnow.ps1: $($unloaded -join ', ')"
+    }
+
+    It 'never invokes a PowerShell keyword as a command' {
+        # A statement such as try placed inside plain parentheses is parsed as a
+        # command name and fails at run time with "The term 'try' is not
+        # recognized". That hid in the Store search suggestion undo, where it
+        # only ran once an Everyone deny rule was present.
+        $keywords = @('try', 'catch', 'finally', 'if', 'elseif', 'else', 'foreach', 'for', 'while', 'do', 'until', 'switch', 'function', 'filter', 'return', 'break', 'continue', 'throw', 'trap', 'exit', 'param', 'begin', 'process', 'end', 'data')
+        $misparsed = @($script:commandCalls | Where-Object { $_.Name -in $keywords } | ForEach-Object { "$($_.Name) at $($_.Where)" })
+
+        $misparsed | Should -BeNullOrEmpty -Because "keywords parsed as commands: $($misparsed -join '; ')"
+    }
+
+    It 'calls only commands that exist' {
+        # Functions come from the loaded scripts; anything else must be a cmdlet or
+        # alias, or one of the external programs Winnow deliberately runs. A new
+        # external program has to be added here, which keeps shell-outs reviewed.
+        $externalPrograms = @('winget', 'DISM', 'reg', 'netsh', 'takeown', 'icacls', 'powercfg', 'bcdedit')
+        $candidates = @($script:commandCalls.Name | Sort-Object -Unique | Where-Object {
+                -not $script:definedFunctions.Contains($_) -and $_ -notin $externalPrograms
+            })
+        $missing = @($candidates | Where-Object { -not (Get-Command -Name $_ -CommandType Cmdlet, Alias, Function -ErrorAction SilentlyContinue) })
+        $unresolved = @($script:commandCalls | Where-Object { $_.Name -in $missing } | ForEach-Object { "$($_.Name) at $($_.Where)" })
+
+        $script:commandCalls.Count | Should -BeGreaterThan 1000 -Because 'the scan must actually see the scripts'
+        $unresolved | Should -BeNullOrEmpty -Because "calls that resolve to nothing: $($unresolved -join '; ')"
     }
 }

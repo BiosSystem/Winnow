@@ -160,7 +160,7 @@ function EnableStoreSearchSuggestions {
             $acl.Access | Where-Object {
                 $_.AccessControlType -eq [System.Security.AccessControl.AccessControlType]::Deny -and
                 (($_.FileSystemRights -band [System.Security.AccessControl.FileSystemRights]::FullControl) -ne 0) -and
-                (try { $_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]) -eq $everyoneSid } catch { $false })
+                $(try { $_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]) -eq $everyoneSid } catch { $false })
             }
         )
 
