@@ -1,3 +1,13 @@
+## [v4.3.1] - 2026-09-24
+### Artifacts
+- **Release Package**: Winnow-v4.3.1.zip
+- **Standalone**: Winnow-Standalone.ps1
+- Both built and published by the release workflow on tag push. Checksums are on the release page.
+### Fixed
+- Undoing "Disable Store search suggestions" failed with access denied on every run, so the feature could not be reverted through Winnow. A `try` statement inside plain parentheses was being run as a command named `try`.
+### Added
+- Build checks that fail if a PowerShell keyword is invoked as a command, or if any call in the loaded scripts resolves to nothing. The second found the bug above.
+
 ## [v4.3.0] - 2026-09-23
 ### Artifacts
 - **Release Package**: Winnow-v4.3.0.zip
