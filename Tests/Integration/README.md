@@ -36,10 +36,21 @@ Adding the dry-run checks, on a machine you can throw away:
 .\Tests\Integration\Invoke-IntegrationTests.ps1 -Ephemeral
 ```
 
-The full suite runs in Windows Sandbox. Open `Sandbox\Winnow-Tests.wsb`: it
-maps the repository read-only, maps `Sandbox\results` writable, installs Pester,
-and runs everything inside the sandbox. Edit both `HostFolder` paths in that file
-if the repository is not at the default path.
+The full suite runs in Windows Sandbox. The simplest way is the launcher, from a
+normal (non-elevated) PowerShell at the repository root:
+
+```powershell
+.\Tests\Integration\Sandbox\Invoke-SandboxRun.ps1 -CloseWhenDone
+```
+
+It writes a sandbox configuration for wherever this clone lives, starts Windows
+Sandbox, waits for the suite inside it to finish, prints the result, and exits
+`0` when everything passed, `1` when a test failed, and `2` when the run did not
+start or finish. The repository is mapped read-only and only `Sandbox\results`
+is writable, so the mutating tests can only change the disposable sandbox.
+
+`Sandbox\Winnow-Tests.wsb` does the same by hand: open it to start a run. Its
+two `HostFolder` paths are absolute, so edit them to point at your clone first.
 
 **Windows Sandbox has to be enabled first.** It ships with Windows 11 Pro and
 Enterprise but is off by default. From an elevated PowerShell:

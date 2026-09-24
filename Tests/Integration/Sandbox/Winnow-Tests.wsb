@@ -7,6 +7,10 @@
     survive: everything else inside the sandbox is destroyed when the window
     closes, including the console output.
 
+    Easier: run Invoke-SandboxRun.ps1 next to this file. It writes this same
+    configuration with the paths of your clone, starts the sandbox, and prints
+    the result, so nothing here needs editing.
+
     The two HostFolder paths below are the maintainer's local example and are
     almost certainly wrong for your machine. They are absolute and machine
     specific, so if you cloned this repository you MUST edit both to point at
