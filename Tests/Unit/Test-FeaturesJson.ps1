@@ -137,4 +137,42 @@ Describe 'Features.json' {
             $feature.RequiresRestorePoint | Should -BeTrue
         }
     }
+
+    It 'gives every feature a category that is defined' {
+        # The GUI groups cards by category. A feature naming a category that does
+        # not exist has no column to render in. A null category is allowed: those
+        # are the CLI-only pseudo-features that are not shown as cards.
+        $categoryNames = @($script:json.Categories.Name)
+        $orphans = @($script:features | Where-Object { $_.Category -and $_.Category -notin $categoryNames } |
+                ForEach-Object { "$($_.FeatureId) -> $($_.Category)" })
+        $orphans | Should -BeNullOrEmpty -Because "features naming a category that is not defined: $($orphans -join '; ')"
+    }
+
+    It 'wires every UiGroup to real features and a real category' {
+        # A combobox option maps to FeatureIds. If one names a feature that does
+        # not exist, selecting that option applies nothing, silently. And the
+        # group needs a category to render in, like any card.
+        $featureIds = @($script:features.FeatureId)
+        $categoryNames = @($script:json.Categories.Name)
+        $problems = New-Object System.Collections.Generic.List[string]
+
+        foreach ($group in @($script:json.UiGroups)) {
+            if ($group.Category -notin $categoryNames) {
+                $problems.Add("group $($group.GroupId) -> undefined category $($group.Category)")
+            }
+            foreach ($value in @($group.Values)) {
+                foreach ($featureId in @($value.FeatureIds)) {
+                    if ($featureId -notin $featureIds) {
+                        $problems.Add("group $($group.GroupId) -> undefined feature $featureId")
+                    }
+                    elseif ($featureId -notin $script:entryParameterNames) {
+                        $problems.Add("group $($group.GroupId) feature $featureId has no CLI parameter")
+                    }
+                }
+            }
+        }
+
+        @($script:json.UiGroups).Count | Should -BeGreaterThan 0 -Because 'the config must actually define UI groups'
+        $problems | Should -BeNullOrEmpty -Because "UiGroup wiring problems: $($problems -join '; ')"
+    }
 }
