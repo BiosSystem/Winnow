@@ -180,6 +180,41 @@ Describe 'Winnow script loading' {
                 }
             }
         }
+
+        # For each Winnow function, its declared parameters and whether it takes
+        # arbitrary arguments ($args or ValueFromRemainingArguments), plus every
+        # named argument passed to a Winnow function anywhere in the loaded code.
+        $script:functionInfo = @{}
+        $script:paramArgCalls = New-Object System.Collections.Generic.List[object]
+        foreach ($relative in @('winnow.ps1') + $script:loadedScripts) {
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $script:loadRoot $relative), [ref]$null, [ref]$null)
+            foreach ($definition in $ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true)) {
+                $names = @()
+                if ($definition.Body.ParamBlock) { $names = @($definition.Body.ParamBlock.Parameters.Name.VariablePath.UserPath) }
+                elseif ($definition.Parameters) { $names = @($definition.Parameters.Name.VariablePath.UserPath) }
+                $body = $definition.Extent.Text
+                $script:functionInfo[$definition.Name] = [PSCustomObject]@{
+                    Params      = $names
+                    AcceptsArgs = ($body -match '\$args\b') -or ($body -match 'ValueFromRemainingArguments')
+                }
+            }
+        }
+        foreach ($relative in @('winnow.ps1') + $script:loadedScripts) {
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $script:loadRoot $relative), [ref]$null, [ref]$null)
+            foreach ($call in $ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.CommandAst] }, $true)) {
+                $name = $call.GetCommandName()
+                if (-not $name -or -not $script:functionInfo.ContainsKey($name)) { continue }
+                foreach ($element in $call.CommandElements) {
+                    if ($element -is [System.Management.Automation.Language.CommandParameterAst]) {
+                        $script:paramArgCalls.Add([PSCustomObject]@{
+                                Function = $name
+                                Param    = $element.ParameterName
+                                Where    = ('{0}:{1}' -f $relative, $call.Extent.StartLineNumber)
+                            })
+                    }
+                }
+            }
+        }
     }
 
     It 'dot-sources every script under Scripts apart from the ones kept out by design' {
@@ -223,5 +258,27 @@ Describe 'Winnow script loading' {
 
         $script:commandCalls.Count | Should -BeGreaterThan 1000 -Because 'the scan must actually see the scripts'
         $unresolved | Should -BeNullOrEmpty -Because "calls that resolve to nothing: $($unresolved -join '; ')"
+    }
+
+    It 'passes only declared parameters to Winnow functions' {
+        # A named argument that matches no parameter fails at run time with "A
+        # parameter cannot be found that matches parameter name". PowerShell
+        # accepts an unambiguous prefix (-Desc for -Description) and the common
+        # parameters, so both are allowed here. Functions that take $args are
+        # skipped because they accept anything.
+        $common = @('Verbose', 'Debug', 'ErrorAction', 'ErrorVariable', 'WarningAction', 'WarningVariable',
+            'InformationAction', 'InformationVariable', 'OutVariable', 'OutBuffer', 'PipelineVariable', 'WhatIf', 'Confirm')
+
+        $badArgs = @(foreach ($use in $script:paramArgCalls) {
+                $info = $script:functionInfo[$use.Function]
+                if ($info.AcceptsArgs) { continue }
+                $valid = @($info.Params) + $common
+                $lower = $use.Param.ToLowerInvariant()
+                $matches = @($valid | Where-Object { $_.ToLowerInvariant() -eq $lower -or $_.ToLowerInvariant().StartsWith($lower) })
+                if ($matches.Count -eq 0) { "$($use.Function) -$($use.Param) at $($use.Where)" }
+            })
+
+        $script:paramArgCalls.Count | Should -BeGreaterThan 0 -Because 'the scan must see named arguments'
+        $badArgs | Should -BeNullOrEmpty -Because "parameters that match nothing: $($badArgs -join '; ')"
     }
 }
