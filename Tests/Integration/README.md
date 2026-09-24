@@ -30,6 +30,12 @@ Read-only checks, safe on a workstation:
 .\Tests\Integration\Invoke-IntegrationTests.ps1
 ```
 
+Run this from a normal, non-elevated PowerShell as well as from an elevated one.
+One test, `refuses to verify without elevation`, only runs unelevated, and the
+CI runner and Windows Sandbox are both elevated, so a workstation run is the only
+place it executes. Unelevated, Winnow stops at its admin check without a UAC
+prompt, because the test runs it with input redirected.
+
 Adding the dry-run checks, on a machine you can throw away:
 
 ```powershell
