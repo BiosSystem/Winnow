@@ -21,14 +21,14 @@
 #      or let `wingetcreate update BiosSystem.Winnow` fill it in.
 
 PackageIdentifier: BiosSystem.Winnow
-PackageVersion: 4.3.0
+PackageVersion: 4.3.1
 Platform:
   - Windows.Desktop
 MinimumOSVersion: 10.0.22000.0
 InstallerType: zip
 Installers:
   - Architecture: neutral
-    InstallerUrl: https://github.com/BiosSystem/Winnow/releases/download/v4.3.0/Winnow-v4.3.0.zip
+    InstallerUrl: https://github.com/BiosSystem/Winnow/releases/download/v4.3.1/Winnow-v4.3.1.zip
     InstallerSha256: 0000000000000000000000000000000000000000000000000000000000000000
     NestedInstallerType: portable
     NestedInstallerFiles:
