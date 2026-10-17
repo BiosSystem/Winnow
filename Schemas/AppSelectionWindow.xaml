@@ -108,13 +108,23 @@
                         </Grid>
                     </Border>
 
-                    <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
-                        <Grid Margin="0,8,10,10">
-                            <CheckBox x:Name="OnlyInstalledBox" Content="Only show installed apps" Foreground="{DynamicResource AppFgColor}" AutomationProperties.Name="Only show installed apps"/>
+                    <!-- A Grid rather than a right-aligned StackPanel: a long translated
+                         label then wraps in the free space instead of pushing the
+                         checkbox off the left edge of the window. -->
+                    <Grid Grid.Row="3">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid Grid.Column="0" Margin="0,8,10,10" HorizontalAlignment="Right">
+                            <CheckBox x:Name="OnlyInstalledBox" Foreground="{DynamicResource AppFgColor}" AutomationProperties.Name="Only show installed apps">
+                                <TextBlock Text="Only show installed apps" TextWrapping="Wrap"/>
+                            </CheckBox>
                         </Grid>
-                        <Button x:Name="ConfirmBtn" Width="80" Height="32" Margin="0,0,10,0" Content="Confirm" Style="{DynamicResource PrimaryButtonStyle}" AutomationProperties.Name="Confirm"/>
-                        <Button x:Name="CancelBtn" Width="80" Height="32" Content="Cancel" Style="{DynamicResource SecondaryButtonStyle}" IsCancel="True" AutomationProperties.Name="Cancel"/>
-                    </StackPanel>
+                        <Button Grid.Column="1" x:Name="ConfirmBtn" Width="80" Height="32" Margin="0,0,10,0" Content="Confirm" Style="{DynamicResource PrimaryButtonStyle}" AutomationProperties.Name="Confirm"/>
+                        <Button Grid.Column="2" x:Name="CancelBtn" Width="80" Height="32" Content="Cancel" Style="{DynamicResource SecondaryButtonStyle}" IsCancel="True" AutomationProperties.Name="Cancel"/>
+                    </Grid>
                 </Grid>
             </Grid>
             

@@ -4,6 +4,12 @@ Document all notable Winnow changes in this file. Releases before 4.0.0 were pub
 
 Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- In Spanish, the app selection window pushed the "Only show installed apps" checkbox off its left edge ("ar solo las aplicaciones instaladas"). The footer was a right-aligned row that overflowed to the left when the translated label was too long; it is now a grid where the label wraps in the free space. English renders exactly as before.
+
 ## [4.4.2] - 2026-10-17
 
 ### Fixed
