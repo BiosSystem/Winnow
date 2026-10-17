@@ -257,6 +257,15 @@ jobs:
             exit 1
           }
 
+      - name: Run GUI window-bound helper tests
+        shell: pwsh
+        run: |
+          $result = Invoke-Pester -Path "Tests/Unit/Test-GuiWindowBound.ps1" -Output Detailed -PassThru
+          if ($result.FailedCount -gt 0) {
+            Write-Error "$($result.FailedCount) test(s) failed in Test-GuiWindowBound.ps1"
+            exit 1
+          }
+
       - name: Run GUI app selection tests
         shell: pwsh
         run: |
