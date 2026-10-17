@@ -72,6 +72,8 @@ function Import-LanguageContent {
     return [PSCustomObject]@{
         LanguageCode = $LanguageFolder
         Features = $features.Features
+        # Optional: text for the UiGroups dropdowns, keyed by GroupId.
+        UiGroups = if ($features.PSObject.Properties['UiGroups']) { $features.UiGroups } else { $null }
         Categories = $categories.Categories
         Chrome = if ($chrome) { $chrome.Chrome } else { $null }
         Fallback = $null
@@ -277,6 +279,59 @@ function Get-LocalizedXaml {
 
     $pattern = '(?<attr>\b(?:Content|Text|Header|ToolTip|Title))="(?<value>[^"]*)"'
     return [regex]::Replace($markup, $pattern, $evaluator)
+}
+
+function Get-WinnowGroupText {
+    <#
+        .SYNOPSIS
+        Returns the localized text of a UiGroups dropdown: its label, its
+        tooltip, or one of its option labels.
+
+        .DESCRIPTION
+        Group text lives in an optional UiGroups section of each language's
+        Features.json, keyed by GroupId. Option labels are keyed by their
+        English text, so reordering the options in Features.json cannot
+        attach a translation to the wrong one. Falls back to en-US, then to
+        the English text passed in from Features.json.
+
+        .PARAMETER Text
+        The English text from Features.json: the group's Label or ToolTip,
+        or for Key Value the option's Label.
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [string]$GroupId,
+        [Parameter(Mandatory)]
+        [ValidateSet('Label', 'ToolTip', 'Value')]
+        [string]$Key,
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [string]$Text
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Text)) {
+        return $Text
+    }
+
+    foreach ($catalogue in @($script:Language, $script:Language.Fallback)) {
+        if (-not $catalogue -or -not $catalogue.UiGroups) { continue }
+
+        $group = $catalogue.UiGroups.PSObject.Properties[$GroupId]
+        if (-not $group) { continue }
+
+        $entry = if ($Key -eq 'Value') {
+            if ($group.Value.PSObject.Properties['Values']) { $group.Value.Values.PSObject.Properties[$Text] }
+        }
+        else {
+            $group.Value.PSObject.Properties[$Key]
+        }
+
+        if ($entry -and -not [string]::IsNullOrWhiteSpace([string]$entry.Value)) {
+            return [string]$entry.Value
+        }
+    }
+
+    return $Text
 }
 
 function Get-WinnowChromeText {

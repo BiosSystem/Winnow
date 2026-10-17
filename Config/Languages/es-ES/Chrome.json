@@ -117,6 +117,10 @@
     "The following changes won't be reverted:": "No se revertirán los siguientes cambios:",
     "Visit the wiki for more information": "Consulta la wiki para más información",
     "This will restore the Start Menu pinned apps layout for the selected user(s) using a backup that is automatically created by Winnow. Manually created backups can also be used.": "Esto restaurará la disposición de aplicaciones ancladas del menú Inicio de los usuarios seleccionados usando una copia que Winnow crea automáticamente. También se pueden usar copias creadas manualmente.",
-    "Automatically find Start Menu backup": "Buscar automáticamente la copia del menú Inicio"
+    "Automatically find Start Menu backup": "Buscar automáticamente la copia del menú Inicio",
+    "No Change": "Sin cambios",
+    "Apply": "Aplicar",
+    "Disable": "Desactivar",
+    "Enable": "Activar"
   }
 }

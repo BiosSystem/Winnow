@@ -150,6 +150,35 @@ BeforeAll {
             }
         }
         if ($tweakControls -eq 0) { $problems.Add('Tweaks: the builder produced no feature checkboxes') }
+
+        # Dropdown groups: the label, the "No Change" option and each option.
+        $groupControls = 0
+        $noChange = Get-WinnowChromeText -Text 'No Change'
+        foreach ($controlName in @($script:UiControlMappings.Keys)) {
+            $mapping = $script:UiControlMappings[$controlName]
+            $combo = $main.FindName($controlName)
+            if ($mapping.Type -ne 'group' -or $combo -isnot [System.Windows.Controls.ComboBox]) { continue }
+            $groupControls++
+            $groupId = $controlName -replace '^Group_(.+)Combo$', '$1'
+            $source = @($featuresData.UiGroups | Where-Object { $_.GroupId -eq $groupId })[0]
+
+            # The builder registers the label's border, not the label itself.
+            $label = $main.FindName("${controlName}_LabelBorder").Child
+            $expectedLabel = Get-WinnowGroupText -GroupId $groupId -Key Label -Text $source.Label
+            if ($label.Text -ne $expectedLabel) {
+                $problems.Add(('Tweaks: group {0} label shows "{1}", expected "{2}"' -f $groupId, $label.Text, $expectedLabel))
+            }
+            if ([string]$combo.Items[0].Content -ne $noChange) {
+                $problems.Add(('Tweaks: group {0} first option shows "{1}", expected "{2}"' -f $groupId, $combo.Items[0].Content, $noChange))
+            }
+            for ($i = 0; $i -lt $mapping.Values.Count; $i++) {
+                $expected = Get-WinnowGroupText -GroupId $groupId -Key Value -Text $mapping.Values[$i].Label
+                if ([string]$combo.Items[$i + 1].Content -ne $expected) {
+                    $problems.Add(('Tweaks: group {0} option {1} shows "{2}", expected "{3}"' -f $groupId, ($i + 1), $combo.Items[$i + 1].Content, $expected))
+                }
+            }
+        }
+        if ($groupControls -eq 0) { $problems.Add('Tweaks: the builder produced no dropdown groups') }
         foreach ($categoryName in @($script:CategoryCardMap.Keys)) {
             $header = $script:CategoryCardMap[$categoryName].Children[0].Children[1]
             $expected = Get-WinnowCategoryText -Category $categoryName
