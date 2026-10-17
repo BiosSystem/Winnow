@@ -1,3 +1,17 @@
+## [v4.4.0] - 2026-10-17
+### Artifacts
+- **Release Package**: Winnow-v4.4.0.zip
+- **Standalone**: Winnow-Standalone.ps1
+- Both built and published by the release workflow on tag push. Checksums are on the release page.
+### Added
+- "Disable AI features in Google Chrome" (`-DisableChromeAI`): Chrome enterprise policies for Gemini, AI Mode, Help Me Write, AI history search, Tab Compare and on-device model downloads.
+### Fixed
+- WinGet apps installed per user are now uninstalled at the next sign-in instead of being reported as failed.
+- "Disable AI features in Microsoft Edge" now also hides the Copilot toolbar icon on Edge 141 and later.
+- The download launcher forwards all Winnow.ps1 parameters, including `-Preset`, `-DryRun` and `-Undo`.
+- `-Undo` and `-SoftwareList` accept comma-separated lists under `powershell.exe -File`.
+- Applied-state checks compare binary and multi-string registry values in order.
+
 ## [v4.3.1] - 2026-09-24
 ### Artifacts
 - **Release Package**: Winnow-v4.3.1.zip

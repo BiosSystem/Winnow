@@ -6,7 +6,7 @@
     purge AI/Copilot integrations, and reclaim your Windows experience.
     Created by Bios-System | https://github.com/BiosSystem/Winnow
 .VERSION
-    4.3.1
+    4.4.0
 #>
 [CmdletBinding(SupportsShouldProcess)]
 param (
@@ -157,7 +157,7 @@ if ($PSVersionTable.PSEdition -eq 'Core') {
     exit 1
 }
 
-Set-Variable -Name 'WINNOW_VERSION' -Value '4.3.1' -Option Constant
+Set-Variable -Name 'WINNOW_VERSION' -Value '4.4.0' -Option Constant
 
 # Call Helper Scripts
 . (Join-Path $PSScriptRoot 'Scripts\Helpers\Ensure-Admin.ps1') -OriginalCommandPath $PSCommandPath -OriginalBoundParameters $PSBoundParameters -OriginalUnboundArguments $MyInvocation.UnboundArguments
