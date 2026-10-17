@@ -83,6 +83,9 @@ For a fuller, sourced comparison against O&O ShutUp10++, Chris Titus WinUtil, an
   <img src="https://img.shields.io/badge/Update%20Lifecycle-Intact-00ff72?style=flat-square" alt="Update Lifecycle">
 </p>
 
+> [!NOTE]
+> **Windows 11 26H2 (preview).** The full integration suite, including the apply, undo and rollback tests that change the system, passes in Windows Sandbox on 26H2 preview build 26300. The new 26H2 Copilot entry points (File Explorer, Windows Search) have no documented policy setting yet, so Winnow does not touch them. It sets every AI disable policy that Microsoft's WindowsAI policy reference documents for Pro editions.
+
 Microsoft introduced six structural changes in Windows 11 24H2 that directly affect gamers and power users. Winnow handles each with a non-destructive, policy-level fix that preserves update integrity and kernel anti-cheat trust chains.
 
 | Windows 11 Change | Impact Without Winnow | Winnow Fix | Implementation |
