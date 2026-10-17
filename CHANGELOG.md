@@ -6,6 +6,10 @@ Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Ve
 
 ## [Unreleased]
 
+### Added
+
+- "Disable AI features in Google Chrome" (`-DisableChromeAI`, category AI) sets Chrome's enterprise policies to block Gemini, AI Mode and its content and tab sharing, third-party AI chat in AI Mode, Help Me Write, AI history search, Tab Compare, Create Themes, DevTools AI, Talk to type, generative Autofill (including Find and Fill with Gemini), Chrome suggestions, and on-device AI model downloads. Each value was checked against Chromium's policy definitions: the policy that controls Find and Fill with Gemini is `AutofillGenAiSettings`, not the `FindAndFillWithGeminiSettings` name the upstream version uses (no such policy exists). Some policies only take effect from Chrome 150 or 151. Undo removes the policies.
+
 ### Fixed
 
 - "Disable AI features in Microsoft Edge" left the Copilot icon in the Edge toolbar on current Edge. It relied on `HubsSidebarEnabled`, but since Edge 141 the toolbar icon is controlled only by `Microsoft365CopilotChatIconEnabled`. The feature now also sets that policy to 0 (and its undo removes it). Like most of the feature's policies, it applies to work or school (Entra ID) Edge profiles.

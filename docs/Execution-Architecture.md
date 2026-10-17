@@ -110,7 +110,7 @@ Revert individual features by id:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Winnow.ps1 -CLI -Silent -Undo DisableTelemetry
 ```
 
-Undo covers the 89 of 114 features that declare a `RegistryUndoKey` or have a case in `Invoke-FeatureUndo`. The rest are rejected rather than silently doing nothing.
+Undo covers the 90 of 115 features that declare a `RegistryUndoKey` or have a case in `Invoke-FeatureUndo`. The rest are rejected rather than silently doing nothing.
 
 ### System Restore Rollback
 
