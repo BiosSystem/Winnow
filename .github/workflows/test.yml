@@ -62,6 +62,15 @@ jobs:
             exit 1
           }
 
+      - name: Run parameter list tests
+        shell: pwsh
+        run: |
+          $result = Invoke-Pester -Path "Tests/Unit/Test-ParameterList.ps1" -Output Detailed -PassThru
+          if ($result.FailedCount -gt 0) {
+            Write-Error "$($result.FailedCount) test(s) failed in Test-ParameterList.ps1"
+            exit 1
+          }
+
       - name: Run tweak-state registry comparison tests
         shell: pwsh
         run: |

@@ -379,6 +379,7 @@ if (-not $script:WingetInstalled -and -not $Silent) {
 . "$PSScriptRoot/Scripts/Helpers/RegistryPathHelpers.ps1"
 . "$PSScriptRoot/Scripts/Helpers/ApplyRegistryRegFile.ps1"
 . "$PSScriptRoot/Scripts/Helpers/ConfirmUnsafeAppRemoval.ps1"
+. "$PSScriptRoot/Scripts/Helpers/ConvertTo-ParameterList.ps1"
 
 # Threading functions
 . "$PSScriptRoot/Scripts/Threading/DoEvents.ps1"
@@ -423,7 +424,7 @@ if ($script:Params.ContainsKey('Undo')) {
     $unknownUndo = [System.Collections.Generic.List[string]]::new()
     $notUndoable = [System.Collections.Generic.List[string]]::new()
 
-    foreach ($undoFeatureId in @($Undo)) {
+    foreach ($undoFeatureId in @(ConvertTo-ParameterList $Undo)) {
         $trimmedId = ([string]$undoFeatureId).Trim()
         if ([string]::IsNullOrWhiteSpace($trimmedId)) { continue }
 
@@ -715,7 +716,7 @@ else {
 
     # --- Winnow v2.3.0 & v2.4.0 Features (Bios-System) ---
     if ($script:Params.ContainsKey("InstallSoftware")) {
-        Install-Software -SoftwareList $script:Params["SoftwareList"]
+        Install-Software -SoftwareList @(ConvertTo-ParameterList $script:Params["SoftwareList"])
     }
     if ($script:Params.ContainsKey("GenerateUnattend")) {
         Generate-UnattendXML -OutputPath $script:Params["UnattendOutPath"]

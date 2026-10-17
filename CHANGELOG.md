@@ -4,6 +4,13 @@ Document all notable Winnow changes in this file. Releases before 4.0.0 were pub
 
 Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- `-Undo` and `-SoftwareList` now accept a comma-separated list when Winnow is started with `powershell.exe -File`. Under `-File`, PowerShell binds `-Undo DisableTelemetry,DisableCopilot` to a `[string[]]` parameter as the single value `DisableTelemetry,DisableCopilot`, so `-Undo` rejected it as one unknown feature and exited, and `-SoftwareList` passed the joined text to winget as one package id. The README's own `-Undo` example failed this way. Both lists are now split on commas, trimmed, and empty entries dropped; separate values passed under `-Command` work as before.
+- Applied-state reads compared binary (REG_BINARY) and multi-string (REG_MULTI_SZ) registry values as unordered sets, so a value holding the right elements in the wrong order counted as applied, and the GUI checkmark followed it. They now compare position by position.
+
 ## [4.3.1] - 2026-09-24
 
 ### Fixed

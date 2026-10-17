@@ -54,4 +54,15 @@ Describe 'Winnow -DryRun safety' -Tag 'DryRun' {
         $result.TimedOut | Should -BeFalse
         $result.Stdout | Should -Match '\[WhatIf\] Create registry backup'
     }
+
+    It 'splits a comma-separated -Undo list passed through -File' -Skip:(-not $script:IsElevated) {
+        # -File binds "A,B" to a [string[]] parameter as one value. Two unknown
+        # names are rejected before anything runs, and reporting them separately
+        # proves the list was split rather than looked up as one FeatureId.
+        $result = Invoke-WinnowProcess -Arguments @('-DryRun', '-Silent', '-CLI', '-Undo', 'NoSuchFeatureA,NoSuchFeatureB')
+
+        $result.TimedOut | Should -BeFalse
+        $result.ExitCode | Should -Not -Be 0
+        $result.Stderr | Should -Match 'Unknown feature\(s\) passed to -Undo: NoSuchFeatureA, NoSuchFeatureB'
+    }
 }
