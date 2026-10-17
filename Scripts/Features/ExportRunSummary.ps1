@@ -26,6 +26,10 @@ function Export-RunSummary {
 
         [string[]]$FailedApps = @(),
 
+        # Winget uninstalls refused for a user-scope package and scheduled for
+        # the next sign-in. Not removed yet, and not failures either.
+        [string[]]$DeferredApps = @(),
+
         [bool]$AppVerificationUnavailable = $false,
 
         [hashtable[]]$FeatureErrors = @(),
@@ -91,6 +95,7 @@ function Export-RunSummary {
         AppRemoval           = [ordered]@{
             Removed                 = @($RemovedApps)
             Failed                  = @($FailedApps)
+            DeferredToNextSignIn    = @($DeferredApps)
             VerificationUnavailable = $AppVerificationUnavailable
         }
         TotalFeaturesChanged = $AppliedFeatureIds.Count + $UndoneFeatureIds.Count

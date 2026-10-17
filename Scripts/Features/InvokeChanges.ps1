@@ -673,6 +673,10 @@ function Invoke-AllChanges {
         Write-Host ""
         Write-Host "  [WARN] App removals could not be verified (winget list unavailable); some may not have succeeded." -ForegroundColor Yellow
     }
+    if (@($script:AppRemovalDeferredApps).Count -gt 0) {
+        Write-Host ""
+        Write-Host "$(@($script:AppRemovalDeferredApps).Count) app removal(s) will finish at the next sign-in: $($script:AppRemovalDeferredApps -join ', ')." -ForegroundColor Yellow
+    }
 
     # Export run summary JSON to %TEMP% for later review. A dry run changes
     # nothing, so it writes no report that would list its features as applied.
@@ -684,6 +688,7 @@ function Invoke-AllChanges {
             -UndoneFeatureIds  $undoIds `
             -RemovedApps       @($script:AppRemovalRemovedApps) `
             -FailedApps        @($script:AppRemovalFailedApps) `
+            -DeferredApps      @($script:AppRemovalDeferredApps) `
             -AppVerificationUnavailable $script:AppRemovalVerificationUnavailable `
             -FeatureErrors     @() `
             -StartTime         $script:RunStartTime `
