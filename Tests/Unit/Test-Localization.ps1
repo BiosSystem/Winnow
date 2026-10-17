@@ -265,14 +265,19 @@ Describe 'Winnow localization' {
         }
 
         It 'falls back per key, not per feature' {
-            # DisableTelemetry is translated but carries no ToolTip.
+            # The shipped catalogue is complete, so take one key out to check
+            # that a missing key falls back on its own.
+            $null = $script:Language.Features.DisableTelemetry.PSObject.Properties.Remove('ToolTip')
+
             Get-WinnowFeatureText -FeatureId 'DisableTelemetry' -Key 'Label' |
                 Should -BeLike ('Desactivar telemetr' + [char]0xED + 'a*')
             Get-WinnowFeatureText -FeatureId 'DisableTelemetry' -Key 'ToolTip' |
                 Should -BeLike 'This setting disables telemetry*'
         }
 
-        It 'falls back entirely for an untranslated feature' {
+        It 'falls back entirely for a feature the catalogue does not cover' {
+            $null = $script:Language.Features.PSObject.Properties.Remove('DisableWidgets')
+
             Get-WinnowFeatureText -FeatureId 'DisableWidgets' -Key 'Label' |
                 Should -Be 'Disable widgets on the taskbar & lock screen'
         }
@@ -293,7 +298,7 @@ Describe 'Winnow localization' {
 
             $replaced | Should -BeGreaterThan 0
             $script:Features['DisableCopilot'].Label | Should -Be 'Desactivar Microsoft Copilot'
-            $script:Features['DisableWidgets'].Label | Should -Be 'Disable widgets on the taskbar & lock screen'
+            $script:Features['DisableWidgets'].Label | Should -Be 'Desactivar los widgets en la barra de tareas y la pantalla de bloqueo'
         }
 
         It 'defines no key that en-US does not' {
