@@ -104,9 +104,10 @@ checks both the verification verdict and the individual values underneath it, so
 a partially applied `.reg` file cannot pass as compliant.
 
 **`RollbackContract.Tests.ps1`** - `Mutating`. The executable specification for
-Track 1 automatic rollback. Rollback does not exist yet, so the whole block skips
-itself until `InvokeChanges.ps1` references `Restore-RegistryBackupState`. When
-Track 1 wires that up, these activate on their own.
+automatic rollback. It injects a real import failure into a copy of the repository
+(a write under a key that denies subkey creation) and checks that the run rolls
+back, reports it, and exits with the rollback code. The block still skips itself if
+`InvokeChanges.ps1` ever stops referencing `Restore-RegistryBackupState`.
 
 **`ModuleRegistryRollback.Tests.ps1`** - `Mutating`. Scope B of full-module rollback
 against the real registry. Captures a module's declared registry targets, drifts a
@@ -120,6 +121,12 @@ directory is locked to SYSTEM and Administrators, the recorded hash makes the in
 check pass, a drifted machine policy is re-asserted against the real registry while an
 already-correct value is left untouched, and a tampered payload fails the check closed.
 Everything it installs is removed in teardown.
+
+**`BrowserPolicyRoundTrip.Tests.ps1`** - `Mutating`. Applies `DisableChromeAI` and
+`DisableEdgeAI` for real, checks that every policy value in each `.reg` file is written
+with the declared data and that `-Verify` reports the feature compliant, then runs
+`-Undo` and checks every value is gone. The touched values are restored in teardown.
+It checks the policy registry, not how the browsers react to it.
 
 They also pin the two open decisions in section 9 of the plan. The load-bearing
 one is that an app-removal failure must **not** trigger rollback: a registry
