@@ -51,6 +51,8 @@ $script:AppRemovalVerificationUnavailable = $false
 # screens report what actually happened instead of a hardcoded empty list.
 $script:AppRemovalRemovedApps = @()
 $script:AppRemovalFailedApps = @()
+# Winget uninstalls refused for a user-scope package and scheduled for the next sign-in.
+$script:AppRemovalDeferredApps = @()
 
 # Rollback state for the current run. The backup path is captured in phase 1 so
 # the apply phase can restore from it without re-reading the Backups folder.

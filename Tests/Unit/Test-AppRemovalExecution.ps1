@@ -52,7 +52,14 @@ BeforeAll {
         $script:AppRemovalFailedApps = @()
         $script:AppRemovalRemovedApps = @()
         $script:AppRemovalVerificationUnavailable = $false
+        $script:AppRemovalDeferredApps = @()
         $script:AppRemovalMethodCache = $null
+    }
+
+    # What Remove-WinGetApp builds from a winget run that refused a user-scope package.
+    $script:userScopeRefusal = [pscustomobject]@{
+        Output   = @('The package installed for user scope cannot be uninstalled when running with administrator privileges.')
+        ExitCode = -1978335107
     }
 }
 
@@ -386,5 +393,184 @@ Describe 'ForceRemoveEdge' {
     It 'short circuits to success under DryRun' {
         $script:Params = @{ DryRun = $true }
         ForceRemoveEdge | Should -BeTrue
+    }
+}
+
+Describe 'Test-WingetUserScopeBlocked' {
+    It 'recognises the admin-context refusal by its exit code: <Case>' -ForEach @(
+        @{ Case = 'decimal'; ExitCode = -1978335107 }
+        @{ Case = 'hex string'; ExitCode = '0x8A15007D' }
+        @{ Case = 'hex string with a leading zero'; ExitCode = '0x08A15007D' }
+    ) {
+        Test-WingetUserScopeBlocked -Result ([pscustomobject]@{ Output = @(); ExitCode = $ExitCode }) | Should -BeTrue
+    }
+
+    It 'falls back to the message when the exit code is not the specific one' {
+        Test-WingetUserScopeBlocked -Result ([pscustomobject]@{
+                Output   = @('Uninstalling...', 'The package installed for user scope cannot be uninstalled when running with administrator privileges.')
+                ExitCode = 1
+            }) | Should -BeTrue
+    }
+
+    It 'does not treat other failures, a success, or no result as a refusal' {
+        Test-WingetUserScopeBlocked -Result ([pscustomobject]@{ Output = @('No installed package found'); ExitCode = -1978335212 }) | Should -BeFalse
+        Test-WingetUserScopeBlocked -Result ([pscustomobject]@{ Output = @('Successfully uninstalled'); ExitCode = 0 }) | Should -BeFalse
+        Test-WingetUserScopeBlocked -Result $null | Should -BeFalse
+    }
+}
+
+Describe 'Remove-WinGetApp deferring a user-scope uninstall' {
+    BeforeEach {
+        Reset-AppRemovalState
+        Mock Write-Host { }
+        Mock Get-RunOnceWingetTargets { @('PC\Alice', 'Default') }
+        Mock Set-RunOnceWingetTask { $true }
+    }
+
+    It 'schedules the uninstall for every target and records it as deferred' {
+        Mock Invoke-NonBlocking { $script:userScopeRefusal }
+        Remove-WinGetApp -app 'Contoso.App'
+
+        Should -Invoke Set-RunOnceWingetTask -Times 1 -Exactly -ParameterFilter { $appId -eq 'Contoso.App' -and $TargetUserName -eq 'PC\Alice' }
+        Should -Invoke Set-RunOnceWingetTask -Times 1 -Exactly -ParameterFilter { $appId -eq 'Contoso.App' -and $TargetUserName -eq 'Default' }
+        $script:AppRemovalDeferredApps | Should -Be @('Contoso.App')
+    }
+
+    It 'schedules nothing and defers nothing when winget succeeds' {
+        Mock Invoke-NonBlocking { [pscustomobject]@{ Output = @('Successfully uninstalled'); ExitCode = 0 } }
+        Remove-WinGetApp -app 'Contoso.App'
+
+        Should -Invoke Set-RunOnceWingetTask -Times 0
+        @($script:AppRemovalDeferredApps).Count | Should -Be 0
+    }
+
+    It 'does not record a deferral when scheduling fails for any target' {
+        Mock Invoke-NonBlocking { $script:userScopeRefusal }
+        Mock Set-RunOnceWingetTask { $TargetUserName -ne 'Default' }
+        Remove-WinGetApp -app 'Contoso.App'
+
+        @($script:AppRemovalDeferredApps).Count | Should -Be 0 -Because 'a partly scheduled uninstall must still be reported by the post-removal check'
+    }
+
+    It 'does not record a deferral when there is no target to schedule for' {
+        Mock Invoke-NonBlocking { $script:userScopeRefusal }
+        Mock Get-RunOnceWingetTargets { @() }
+        Remove-WinGetApp -app 'Contoso.App'
+
+        @($script:AppRemovalDeferredApps).Count | Should -Be 0
+    }
+
+    It 'reuses the -User task scheduled before the uninstall instead of scheduling again' {
+        $script:Params = @{ User = 'Alice' }
+        Mock Invoke-NonBlocking { $script:userScopeRefusal }
+        Remove-WinGetApp -app 'Contoso.App'
+
+        Should -Invoke Set-RunOnceWingetTask -Times 1 -Exactly
+        Should -Invoke Get-RunOnceWingetTargets -Times 0
+        $script:AppRemovalDeferredApps | Should -Be @('Contoso.App')
+    }
+}
+
+Describe 'Get-RunOnceWingetTargets' {
+    BeforeEach {
+        Reset-AppRemovalState
+        Mock Write-Host { }
+        Mock Write-Warning { }
+    }
+
+    It 'targets the Default profile under Sysprep' {
+        $script:Params = @{ Sysprep = $true }
+        Get-RunOnceWingetTargets | Should -Be @('Default')
+    }
+
+    It 'targets the -User account' {
+        $script:Params = @{ User = 'Alice' }
+        Get-RunOnceWingetTargets | Should -Be @('Alice')
+    }
+
+    It 'targets the signed-in user for CurrentUser' {
+        Mock GetTargetUserForAppRemoval { 'CurrentUser' }
+        Get-RunOnceWingetTargets | Should -Be @($env:USERNAME)
+    }
+
+    It 'targets the named user for a specific removal target' {
+        Mock GetTargetUserForAppRemoval { 'Bob' }
+        Mock Get-CimInstance { @() }
+        Get-RunOnceWingetTargets | Should -Be @('Bob')
+        Should -Invoke Get-CimInstance -Times 0
+    }
+
+    It 'targets every profile with a hive, plus Default, for AllUsers' {
+        $mySid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+        $myName = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+        Mock GetTargetUserForAppRemoval { 'AllUsers' }
+        Mock Get-CimInstance {
+            @(
+                [pscustomobject]@{ SID = $mySid; LocalPath = 'C:\Users\Me'; Special = $false }
+                [pscustomobject]@{ SID = 'S-1-5-18'; LocalPath = 'C:\Windows\System32\config\systemprofile'; Special = $true }
+                [pscustomobject]@{ SID = 'S-1-5-21-1-2-3-1500'; LocalPath = 'C:\Users\NoHive'; Special = $false }
+                [pscustomobject]@{ SID = 'S-1-5-21-1-2-3-999999'; LocalPath = 'C:\Users\Orphan'; Special = $false }
+            )
+        }
+        Mock Test-Path { $LiteralPath -notlike '*NoHive*' }
+
+        $targets = @(Get-RunOnceWingetTargets)
+
+        $targets | Should -Be @($myName, 'Default') -Because 'special profiles, profiles without a hive and unresolvable SIDs are skipped'
+        Should -Invoke Write-Warning -Times 1 -Exactly
+    }
+
+    It 'returns no targets when profiles cannot be listed' {
+        Mock GetTargetUserForAppRemoval { 'AllUsers' }
+        Mock Get-CimInstance { throw 'WMI unavailable' }
+
+        @(Get-RunOnceWingetTargets).Count | Should -Be 0
+    }
+}
+
+Describe 'Set-RunOnceWingetTask result' {
+    BeforeEach {
+        Reset-AppRemovalState
+        Mock Write-Host { }
+    }
+
+    It 'returns true and writes to the explicit target user' {
+        $script:capturedTarget = $null
+        Mock Invoke-WithTargetUserHive { $script:capturedTarget = $TargetUserName; 'noise' }
+
+        Set-RunOnceWingetTask -appId 'Contoso.App' -TargetUserName 'PC\Alice' | Should -BeExactly $true
+        $script:capturedTarget | Should -Be 'PC\Alice'
+    }
+
+    It 'returns false when the hive cannot be written' {
+        Mock Invoke-WithTargetUserHive { throw 'hive locked' }
+        Set-RunOnceWingetTask -appId 'Contoso.App' -TargetUserName 'PC\Alice' | Should -BeExactly $false
+    }
+}
+
+Describe 'RemoveApps with a deferred uninstall' {
+    BeforeEach {
+        Reset-AppRemovalState
+        Mock Write-Host { }
+        Mock GetTargetUserForAppRemoval { 'AllUsers' }
+        Mock Get-AppRemovalMethod { 'WinGet' }
+        Mock Remove-WinGetApp { $script:AppRemovalDeferredApps = @($script:AppRemovalDeferredApps) + $app }
+        Mock GetInstalledAppsViaWinget { @([pscustomobject]@{ Id = 'x' }) }
+        Mock Test-AppStillInstalled { $true }
+    }
+
+    It 'does not report a deferred uninstall as a failure although the app is still present' {
+        RemoveApps @('Contoso.App')
+
+        $script:AppRemovalFailures | Should -Be 0
+        @($script:AppRemovalFailedApps).Count | Should -Be 0
+        $script:AppRemovalDeferredApps | Should -Be @('Contoso.App')
+    }
+
+    It 'does not flag verification as unavailable when only deferred apps were removed' {
+        Mock GetInstalledAppsViaWinget { $null }
+        RemoveApps @('Contoso.App')
+
+        $script:AppRemovalVerificationUnavailable | Should -BeFalse
     }
 }

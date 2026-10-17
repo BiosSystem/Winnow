@@ -324,4 +324,17 @@ Describe 'Run summary' {
         @($summary.FeaturesApplied.Status | Select-Object -Unique) | Should -Be @('Applied')
         $summary.Rollback.Triggered | Should -BeFalse
     }
+
+    It 'lists deferred uninstalls separately and does not count them as errors' {
+        $start = (Get-Date).AddMinutes(-5)
+        Export-RunSummary -AppliedFeatureIds @() -UndoneFeatureIds @() `
+            -RemovedApps @('Microsoft.BingNews') -DeferredApps @('Contoso.App') `
+            -StartTime $start -WinnowVersion 'test'
+        $path = Join-Path $TestDrive ('Winnow_RunSummary_{0}.json' -f $start.ToString('yyyyMMdd_HHmmss'))
+        $summary = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+
+        @($summary.AppRemoval.DeferredToNextSignIn) | Should -Be @('Contoso.App')
+        @($summary.AppRemoval.Failed).Count | Should -Be 0
+        $summary.ErrorCount | Should -Be 0
+    }
 }

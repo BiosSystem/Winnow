@@ -148,13 +148,17 @@ function Show-ApplyModal {
             } else {
                 $script:ApplyCompletionTitleEl.Text = "Changes Applied"
 
-                # Show completion message with reboot instructions if any applied features require reboot
-                if ($RestartExplorer) {
-                    $rebootFeatures = @()
-                    foreach ($paramKey in $script:Params.Keys) {
-                        if ($script:Features.ContainsKey($paramKey) -and $script:Features[$paramKey].RequiresReboot -eq $true) {
-                            $feature = $script:Features[$paramKey]
-                            $rebootFeatures += "$($feature.Label)"
+                # Show completion message with reboot instructions if any applied features require reboot,
+                # or if an app uninstall was deferred to the next sign-in
+                $deferredApps = @($script:AppRemovalDeferredApps)
+                if ($RestartExplorer -or $deferredApps.Count -gt 0) {
+                    $rebootFeatures = @($deferredApps | ForEach-Object { "Uninstall of $_ (finishes at next sign-in)" })
+                    if ($RestartExplorer) {
+                        foreach ($paramKey in $script:Params.Keys) {
+                            if ($script:Features.ContainsKey($paramKey) -and $script:Features[$paramKey].RequiresReboot -eq $true) {
+                                $feature = $script:Features[$paramKey]
+                                $rebootFeatures += "$($feature.Label)"
+                            }
                         }
                     }
 
