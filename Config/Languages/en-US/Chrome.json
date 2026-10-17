@@ -94,6 +94,8 @@
     "Current user only": "Current user only",
     "Target user only": "Target user only",
     "Apps will be removed for all users and from the Windows image to prevent reinstallation for new users.": "Apps will be removed for all users and from the Windows image to prevent reinstallation for new users.",
+    "Apps will only be removed for the current user.": "Apps will only be removed for the current user.",
+    "Apps will only be removed for the specified target user.": "Apps will only be removed for the specified target user.",
     "Create a system restore point (Recommended)": "Create a system restore point (Recommended)",
     "Restart the Windows Explorer process to apply all changes immediately": "Restart the Windows Explorer process to apply all changes immediately",
     "Review selected changes": "Review selected changes",

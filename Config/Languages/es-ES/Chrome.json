@@ -91,6 +91,8 @@
     "Current user only": "Solo el usuario actual",
     "Target user only": "Solo el usuario indicado",
     "Apps will be removed for all users and from the Windows image to prevent reinstallation for new users.": "Las aplicaciones se eliminarán para todos los usuarios y de la imagen de Windows para evitar que se reinstalen en usuarios nuevos.",
+    "Apps will only be removed for the current user.": "Las aplicaciones solo se eliminarán para el usuario actual.",
+    "Apps will only be removed for the specified target user.": "Las aplicaciones solo se eliminarán para el usuario indicado.",
     "Create a system restore point (Recommended)": "Crear un punto de restauración del sistema (recomendado)",
     "Restart the Windows Explorer process to apply all changes immediately": "Reiniciar el proceso del Explorador de Windows para aplicar todos los cambios de inmediato",
     "Review selected changes": "Revisar los cambios seleccionados",

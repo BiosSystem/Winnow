@@ -288,6 +288,19 @@ Describe 'Winnow localization' {
                 Should -Be 'Privacidad y contenido sugerido'
         }
 
+        It 'translates text set from code through the Chrome catalogue' {
+            Get-WinnowChromeText -Text 'All users' | Should -Be 'Todos los usuarios'
+            Get-WinnowChromeText -Text 'Not in any catalogue' | Should -Be 'Not in any catalogue'
+        }
+
+        It 'falls back to en-US, then to the text itself, for code-set strings' {
+            $null = $script:Language.Chrome.PSObject.Properties.Remove('All users')
+            Get-WinnowChromeText -Text 'All users' | Should -Be 'All users'
+
+            $script:Language = $null
+            Get-WinnowChromeText -Text 'All users' | Should -Be 'All users'
+        }
+
         It 'resolves other Spanish regions to es-ES' {
             Resolve-LanguageFolder -LanguageCode 'es-MX' | Should -Be 'es-ES'
             Resolve-LanguageFolder -LanguageCode 'es-AR' | Should -Be 'es-ES'

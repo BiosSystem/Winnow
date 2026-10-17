@@ -182,16 +182,16 @@ function Update-AppRemovalScopeDescription {
 
     $selectedItem = $AppRemovalScopeCombo.SelectedItem
     if ($selectedItem) {
-        switch ($selectedItem.Content) {
-            "All users" {
-                $AppRemovalScopeDescription.Text = "Apps will be removed for all users and from the Windows image to prevent reinstallation for new users."
-            }
-            "Current user only" {
-                $AppRemovalScopeDescription.Text = "Apps will only be removed for the current user."
-            }
-            "Target user only" {
-                $AppRemovalScopeDescription.Text = "Apps will only be removed for the specified target user."
-            }
+        # Switch on the item's x:Name, not its Content: Content is translated
+        # by Get-LocalizedXaml, so matching English text left the all-users
+        # description in place for every scope in a non-English UI.
+        $description = switch ($selectedItem.Name) {
+            'AppRemovalScopeAllUsers' { 'Apps will be removed for all users and from the Windows image to prevent reinstallation for new users.' }
+            'AppRemovalScopeCurrentUser' { 'Apps will only be removed for the current user.' }
+            'AppRemovalScopeTargetUser' { 'Apps will only be removed for the specified target user.' }
+        }
+        if ($description) {
+            $AppRemovalScopeDescription.Text = Get-WinnowChromeText -Text $description
         }
     }
 }

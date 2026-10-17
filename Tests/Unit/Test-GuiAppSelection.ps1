@@ -51,21 +51,32 @@ BeforeAll {
         }
     }
 
+    # Mirrors MainWindow.xaml: each item has its x:Name, its Content is the
+    # catalogue translation of the English text, and the description starts
+    # out with the (translated) all-users copy, as the markup sets it.
     $script:scopeDescriptionScenario = {
-        param($repoRoot, $itemContent)
+        param($repoRoot, $itemName, $lang)
         Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase -ErrorAction Stop
+        . (Join-Path $repoRoot 'Scripts\FileIO\LoadJsonFile.ps1')
+        . (Join-Path $repoRoot 'Scripts\FileIO\LoadLanguageFile.ps1')
         . (Join-Path $repoRoot 'Scripts\GUI\MainWindow-AppSelection.ps1')
+        $script:Language = Import-LanguageFile -LanguageCode $lang -LanguagesPath (Join-Path $repoRoot 'Config\Languages')
 
         $combo = New-Object System.Windows.Controls.ComboBox
-        foreach ($text in 'All users', 'Current user only', 'Target user only') {
+        foreach ($spec in @(
+                @('AppRemovalScopeAllUsers', 'All users'),
+                @('AppRemovalScopeCurrentUser', 'Current user only'),
+                @('AppRemovalScopeTargetUser', 'Target user only'))) {
             $item = New-Object System.Windows.Controls.ComboBoxItem
-            $item.Content = $text
+            $item.Name = $spec[0]
+            $item.Content = Get-WinnowChromeText -Text $spec[1]
             [void]$combo.Items.Add($item)
-            if ($text -eq $itemContent) { $combo.SelectedItem = $item }
+            if ($spec[0] -eq $itemName) { $combo.SelectedItem = $item }
         }
         $desc = New-Object System.Windows.Controls.TextBlock
+        $desc.Text = Get-WinnowChromeText -Text 'Apps will be removed for all users and from the Windows image to prevent reinstallation for new users.'
         Update-AppRemovalScopeDescription -AppRemovalScopeCombo $combo -AppRemovalScopeDescription $desc
-        return @{ Text = $desc.Text }
+        return @{ Text = $desc.Text; Content = [string]$combo.SelectedItem.Content }
     }
 
     $script:selectionStatusScenario = {
@@ -211,19 +222,31 @@ BeforeAll {
 
 Describe 'Update-AppRemovalScopeDescription' {
     It 'sets the all-users copy, mentioning the image, for the all-users scope' {
-        $r = Invoke-InStaRunspace -Script $script:scopeDescriptionScenario -ArgumentList @($script:repoRoot, 'All users')
+        $r = Invoke-InStaRunspace -Script $script:scopeDescriptionScenario -ArgumentList @($script:repoRoot, 'AppRemovalScopeAllUsers', 'en-US')
         $r.Text | Should -Match 'all users'
         $r.Text | Should -Match 'image'
     }
 
     It 'sets the current-user copy' {
-        $r = Invoke-InStaRunspace -Script $script:scopeDescriptionScenario -ArgumentList @($script:repoRoot, 'Current user only')
-        $r.Text | Should -Match 'current user'
+        $r = Invoke-InStaRunspace -Script $script:scopeDescriptionScenario -ArgumentList @($script:repoRoot, 'AppRemovalScopeCurrentUser', 'en-US')
+        $r.Text | Should -Be 'Apps will only be removed for the current user.'
     }
 
     It 'sets the target-user copy' {
-        $r = Invoke-InStaRunspace -Script $script:scopeDescriptionScenario -ArgumentList @($script:repoRoot, 'Target user only')
-        $r.Text | Should -Match 'target user'
+        $r = Invoke-InStaRunspace -Script $script:scopeDescriptionScenario -ArgumentList @($script:repoRoot, 'AppRemovalScopeTargetUser', 'en-US')
+        $r.Text | Should -Be 'Apps will only be removed for the specified target user.'
+    }
+
+    It 'replaces the all-users copy when a translated UI switches to <Name>' -ForEach @(
+        @{ Name = 'AppRemovalScopeCurrentUser'; Expected = 'usuario actual' }
+        @{ Name = 'AppRemovalScopeTargetUser'; Expected = 'usuario indicado' }
+    ) {
+        # The items show Spanish text, so matching English Content never
+        # fired and the all-users description stayed in place.
+        $r = Invoke-InStaRunspace -Script $script:scopeDescriptionScenario -ArgumentList @($script:repoRoot, $Name, 'es-ES')
+        $r.Content | Should -Not -Match '^(Current|Target) user only$' -Because 'the dropdown item is translated'
+        $r.Text | Should -Match $Expected
+        $r.Text | Should -Not -Match 'todos los usuarios'
     }
 }
 
