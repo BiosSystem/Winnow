@@ -30,7 +30,7 @@ function ReplaceStartMenuForAllUsers {
     if (-not (Test-Path $startMenuTemplate)) {
         Write-Host "Error: Unable to clear start menu, start2.bin file missing from script folder" -ForegroundColor Red
         Write-Host ""
-        return
+        return $false
     }
 
     # Get path to start menu file for all users
@@ -38,8 +38,11 @@ function ReplaceStartMenuForAllUsers {
     $usersStartMenuPaths = Get-ChildItem -Path $userPathString -ErrorAction SilentlyContinue
 
     # Go through all users and replace the start menu file
+    $success = $true
     ForEach ($startMenuPath in $usersStartMenuPaths) {
-        ReplaceStartMenu -startMenuBinFile "$($startMenuPath.Fullname)\start2.bin" -startMenuTemplate $startMenuTemplate
+        if (-not (ReplaceStartMenu -startMenuBinFile "$($startMenuPath.Fullname)\start2.bin" -startMenuTemplate $startMenuTemplate)) {
+            $success = $false
+        }
     }
 
     # Also replace the start menu file for the default user profile
@@ -47,19 +50,31 @@ function ReplaceStartMenuForAllUsers {
 
     if ($script:Params.ContainsKey("WhatIf")) {
         Write-Host "[WhatIf] Replace Start Menu for Default user profile with template $startMenuTemplate" -ForegroundColor Cyan
-        return
+        return $success
     }
 
     # Create folder if it doesn't exist
     if (-not (Test-Path $defaultStartMenuPath)) {
-        new-item $defaultStartMenuPath -ItemType Directory -Force | Out-Null
-        Write-Host "Created LocalState folder for default user profile"
+        try {
+            New-Item $defaultStartMenuPath -ItemType Directory -Force -ErrorAction Stop | Out-Null
+            Write-Host "Created LocalState folder for default user profile"
+        }
+        catch {
+            Write-Host "Error: Unable to create the start menu folder for the default user profile: $($_.Exception.Message)" -ForegroundColor Red
+            Write-Host ""
+            return $false
+        }
     }
 
     # Copy template to default profile
-    ReplaceStartMenu -startMenuBinFile "$($defaultStartMenuPath)\start2.bin" -startMenuTemplate $startMenuTemplate
-    Write-Host "Replaced start menu for the default user profile"
+    if (ReplaceStartMenu -startMenuBinFile "$($defaultStartMenuPath)\start2.bin" -startMenuTemplate $startMenuTemplate) {
+        Write-Host "Replaced start menu for the default user profile"
+    }
+    else {
+        $success = $false
+    }
     Write-Host ""
+    return $success
 }
 
 
@@ -98,19 +113,19 @@ function ReplaceStartMenu {
     # Check if template bin file exists
     if (-not (Test-Path $startMenuTemplate)) {
         Write-Host "Error: Unable to replace start menu, template file not found" -ForegroundColor Red
-        return
+        return $false
     }
 
     if ([IO.Path]::GetExtension($startMenuTemplate) -ne ".bin") {
         Write-Host "Error: Unable to replace start menu, template file is not a valid .bin file" -ForegroundColor Red
-        return
+        return $false
     }
 
     $userName = GetStartMenuUserNameFromPath -StartMenuBinFile $startMenuBinFile
 
     if ($script:Params.ContainsKey("WhatIf")) {
         Write-Host "[WhatIf] Replace Start Menu for user $userName with template $startMenuTemplate" -ForegroundColor Cyan
-        return
+        return $true
     }
 
     $timestamp = Get-Date -Format 'yyyyMMdd_HHmmss'
@@ -118,20 +133,29 @@ function ReplaceStartMenu {
     $startMenuDir = Split-Path $startMenuBinFile -Parent
     $backupBinFile = Join-Path $startMenuDir $backupFileName
 
-    if (Test-Path $startMenuBinFile) {
-        # Backup current start menu file
-        Copy-Item -Path $startMenuBinFile -Destination $backupBinFile -Force
-        Write-Verbose "Start menu backup for user $userName saved to $backupFileName"
-    }
-    else {
-        Write-Host "Unable to find original start2.bin file for user $userName, no backup was created for this user" -ForegroundColor Yellow
-        New-Item -ItemType File -Path $startMenuBinFile -Force
-    }
+    # -ErrorAction Stop: a failed copy used to print an error and then report
+    # the start menu as replaced anyway.
+    try {
+        if (Test-Path $startMenuBinFile) {
+            # Backup current start menu file
+            Copy-Item -Path $startMenuBinFile -Destination $backupBinFile -Force -ErrorAction Stop
+            Write-Verbose "Start menu backup for user $userName saved to $backupFileName"
+        }
+        else {
+            Write-Host "Unable to find original start2.bin file for user $userName, no backup was created for this user" -ForegroundColor Yellow
+            New-Item -ItemType File -Path $startMenuBinFile -Force -ErrorAction Stop | Out-Null
+        }
 
-    # Copy template file
-    Copy-Item -Path $startMenuTemplate -Destination $startMenuBinFile -Force
+        # Copy template file
+        Copy-Item -Path $startMenuTemplate -Destination $startMenuBinFile -Force -ErrorAction Stop
+    }
+    catch {
+        Write-Host "Error: Unable to replace start menu for user $($userName): $($_.Exception.Message)" -ForegroundColor Red
+        return $false
+    }
 
     Write-Host "Replaced start menu for user $userName"
+    return $true
 }
 
 <#

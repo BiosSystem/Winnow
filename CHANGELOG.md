@@ -4,6 +4,14 @@ Document all notable Winnow changes in this file. Releases before 4.0.0 were pub
 
 Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Feature steps that run outside the registry import now count as failures when they fail, instead of the run finishing as "All changes have been applied successfully!" with exit code 0. This covers the telemetry scheduled tasks behind `DisableTelemetry`, the optional features behind `EnableWindowsSandbox` and `EnableWindowsSubsystemForLinux`, the start menu replacement (`ClearStart`, `ReplaceStart` and the all-users variants), and Microsoft Store search suggestions. A failed step is listed in the console summary, marked `Error` in the run summary (`FeaturesApplied`/`FeaturesUndone` and `ErrorCount`), counted in the GUI completion panel, and makes the run exit 1. It does not trigger rollback, the same as an app removal failure. A start menu file or Store database that could not be resolved for the user is now also a failure rather than a silent skip.
+- A scheduled task lookup that failed for any reason (access denied, the ScheduledTasks module not loading) was reported as "task not found" and treated as fine. Only a genuinely missing task counts as done now.
+- The start menu replacement and the Store search suggestion lock-down printed an error from a failed copy or ACL change and then reported success anyway.
+
 ## [4.4.0] - 2026-10-17
 
 ### Added

@@ -9,6 +9,19 @@
         - Custom logic: app removal, Windows optional features, start menu
         replacement, and other special-case features.
 #>
+# Records a feature step that failed outside the registry import: a scheduled
+# task, an optional feature, a start menu file, the Store database. It is
+# reported in the console summary, the run summary and the exit code, but does
+# not trigger rollback: restoring the registry would not undo or redo the step,
+# the same reasoning as app removal failures.
+function Add-FeatureStepFailure {
+    param(
+        [Parameter(Mandatory)][string]$FeatureId,
+        [Parameter(Mandatory)][string]$Message
+    )
+    $script:FeatureStepFailures = @($script:FeatureStepFailures) + , @{ FeatureId = $FeatureId; Message = $Message }
+}
+
 function Invoke-FeatureApply {
     param(
         [Parameter(Mandatory)]
@@ -35,7 +48,9 @@ function Invoke-FeatureApply {
             }
             'DisableTelemetry' {
                 # Also disable telemetry scheduled tasks and services
-                Disable-TelemetryScheduledTasks
+                if (-not (Disable-TelemetryScheduledTasks)) {
+                    Add-FeatureStepFailure -FeatureId $FeatureId -Message 'one or more telemetry scheduled tasks could not be disabled'
+                }
             }
             'DisableTelemetryServices' {
                 Disable-TelemetryServices
@@ -97,22 +112,30 @@ function Invoke-FeatureApply {
         }
         'EnableWindowsSandbox' {
             Write-Host "> $applyText..."
-            EnableWindowsFeature "Containers-DisposableClientVM"
+            if (-not (EnableWindowsFeature "Containers-DisposableClientVM")) {
+                Add-FeatureStepFailure -FeatureId $FeatureId -Message 'the Containers-DisposableClientVM optional feature could not be enabled'
+            }
             Write-Host ""
             return
         }
         'EnableWindowsSubsystemForLinux' {
             Write-Host "> $applyText..."
-            EnableWindowsFeature "VirtualMachinePlatform"
-            EnableWindowsFeature "Microsoft-Windows-Subsystem-Linux"
+            foreach ($optionalFeature in 'VirtualMachinePlatform', 'Microsoft-Windows-Subsystem-Linux') {
+                if (-not (EnableWindowsFeature $optionalFeature)) {
+                    Add-FeatureStepFailure -FeatureId $FeatureId -Message "the $optionalFeature optional feature could not be enabled"
+                }
+            }
             Write-Host ""
             return
         }
         'ClearStart' {
             Write-Host "> $applyText for user $(GetUserName)..."
             $startMenuBinFile = GetStartMenuBinPathForUser -UserName (GetUserName)
-            if (-not [string]::IsNullOrWhiteSpace($startMenuBinFile)) {
-                ReplaceStartMenu -startMenuBinFile $startMenuBinFile
+            if ([string]::IsNullOrWhiteSpace($startMenuBinFile)) {
+                Add-FeatureStepFailure -FeatureId $FeatureId -Message "the start menu file for user $(GetUserName) could not be resolved"
+            }
+            elseif (-not (ReplaceStartMenu -startMenuBinFile $startMenuBinFile)) {
+                Add-FeatureStepFailure -FeatureId $FeatureId -Message "the start menu for user $(GetUserName) could not be replaced"
             }
             Write-Host ""
             return
@@ -120,32 +143,44 @@ function Invoke-FeatureApply {
         'ReplaceStart' {
             Write-Host "> $applyText for user $(GetUserName)..."
             $startMenuBinFile = GetStartMenuBinPathForUser -UserName (GetUserName)
-            if (-not [string]::IsNullOrWhiteSpace($startMenuBinFile)) {
-                ReplaceStartMenu -startMenuBinFile $startMenuBinFile -startMenuTemplate $script:Params.Item("ReplaceStart")
+            if ([string]::IsNullOrWhiteSpace($startMenuBinFile)) {
+                Add-FeatureStepFailure -FeatureId $FeatureId -Message "the start menu file for user $(GetUserName) could not be resolved"
+            }
+            elseif (-not (ReplaceStartMenu -startMenuBinFile $startMenuBinFile -startMenuTemplate $script:Params.Item("ReplaceStart"))) {
+                Add-FeatureStepFailure -FeatureId $FeatureId -Message "the start menu for user $(GetUserName) could not be replaced"
             }
             Write-Host ""
             return
         }
         'ClearStartAllUsers' {
-            ReplaceStartMenuForAllUsers
+            if (-not (ReplaceStartMenuForAllUsers)) {
+                Add-FeatureStepFailure -FeatureId $FeatureId -Message 'the start menu could not be replaced for every user'
+            }
             return
         }
         'ReplaceStartAllUsers' {
-            ReplaceStartMenuForAllUsers -startMenuTemplate $script:Params.Item("ReplaceStartAllUsers")
+            if (-not (ReplaceStartMenuForAllUsers -startMenuTemplate $script:Params.Item("ReplaceStartAllUsers"))) {
+                Add-FeatureStepFailure -FeatureId $FeatureId -Message 'the start menu could not be replaced for every user'
+            }
             return
         }
         'DisableStoreSearchSuggestions' {
             if ($script:Params.ContainsKey("Sysprep")) {
                 Write-Host "> Disabling Microsoft Store search suggestions in the start menu for all users..."
-                DisableStoreSearchSuggestionsForAllUsers
+                if (-not (DisableStoreSearchSuggestionsForAllUsers)) {
+                    Add-FeatureStepFailure -FeatureId $FeatureId -Message 'Store search suggestions could not be disabled for every user'
+                }
                 Write-Host ""
                 return
             }
 
             Write-Host "> Disabling Microsoft Store search suggestions for user $(GetUserName)..."
             $storeDb = GetStoreAppsDatabasePathForUser -UserName (GetUserName)
-            if ($storeDb) {
-                DisableStoreSearchSuggestions -StoreAppsDatabase $storeDb
+            if (-not $storeDb) {
+                Add-FeatureStepFailure -FeatureId $FeatureId -Message "the Store database for user $(GetUserName) could not be resolved"
+            }
+            elseif (-not (DisableStoreSearchSuggestions -StoreAppsDatabase $storeDb)) {
+                Add-FeatureStepFailure -FeatureId $FeatureId -Message "Store search suggestions could not be disabled for user $(GetUserName)"
             }
             Write-Host ""
             return
@@ -196,35 +231,47 @@ function Invoke-FeatureUndo {
         'DisableStoreSearchSuggestions' {
             if ($script:Params.ContainsKey('Sysprep')) {
                 Write-Host "> Re-enabling Microsoft Store search suggestions in the start menu for all users..."
-                EnableStoreSearchSuggestionsForAllUsers
+                if (-not (EnableStoreSearchSuggestionsForAllUsers)) {
+                    Add-FeatureStepFailure -FeatureId $FeatureId -Message 'Store search suggestions could not be re-enabled for every user'
+                }
                 Write-Host ""
                 return
             }
 
             Write-Host "> Re-enabling Microsoft Store search suggestions for user $(GetUserName)..."
             $storeDb = GetStoreAppsDatabasePathForUser -UserName (GetUserName)
-            if ($storeDb) {
-                EnableStoreSearchSuggestions -StoreAppsDatabase $storeDb
+            if (-not $storeDb) {
+                Add-FeatureStepFailure -FeatureId $FeatureId -Message "the Store database for user $(GetUserName) could not be resolved"
+            }
+            elseif (-not (EnableStoreSearchSuggestions -StoreAppsDatabase $storeDb)) {
+                Add-FeatureStepFailure -FeatureId $FeatureId -Message "Store search suggestions could not be re-enabled for user $(GetUserName)"
             }
             Write-Host ""
             return
         }
         'EnableWindowsSandbox' {
             Write-Host "> $($feature.ApplyUndoText)..."
-            DisableWindowsFeature 'Containers-DisposableClientVM'
+            if (-not (DisableWindowsFeature 'Containers-DisposableClientVM')) {
+                Add-FeatureStepFailure -FeatureId $FeatureId -Message 'the Containers-DisposableClientVM optional feature could not be disabled'
+            }
             Write-Host ""
             return
         }
         'EnableWindowsSubsystemForLinux' {
             Write-Host "> $($feature.ApplyUndoText)..."
-            DisableWindowsFeature 'Microsoft-Windows-Subsystem-Linux'
-            DisableWindowsFeature 'VirtualMachinePlatform'
+            foreach ($optionalFeature in 'Microsoft-Windows-Subsystem-Linux', 'VirtualMachinePlatform') {
+                if (-not (DisableWindowsFeature $optionalFeature)) {
+                    Add-FeatureStepFailure -FeatureId $FeatureId -Message "the $optionalFeature optional feature could not be disabled"
+                }
+            }
             Write-Host ""
             return
         }
         'DisableTelemetry' {
             # Also re-enable telemetry scheduled tasks
-            Enable-TelemetryScheduledTasks
+            if (-not (Enable-TelemetryScheduledTasks)) {
+                Add-FeatureStepFailure -FeatureId $FeatureId -Message 'one or more telemetry scheduled tasks could not be re-enabled'
+            }
             return
         }
         'DisableTelemetryServices' {
@@ -407,6 +454,7 @@ function Invoke-AllChanges {
     }
 
     $script:RegistryImportFailures = 0
+    $script:FeatureStepFailures = @()
 
     # The run summary export is guarded on this and nothing ever set it, so no
     # summary was written at all. The GUI's "View Last Report" had nothing to
@@ -673,6 +721,10 @@ function Invoke-AllChanges {
         Write-Host ""
         Write-Host "  [WARN] App removals could not be verified (winget list unavailable); some may not have succeeded." -ForegroundColor Yellow
     }
+    if (@($script:FeatureStepFailures).Count -gt 0) {
+        Write-Host ""
+        Write-Host "$(@($script:FeatureStepFailures).Count) feature step(s) failed: $((@($script:FeatureStepFailures) | ForEach-Object { '{0} ({1})' -f $_.FeatureId, $_.Message }) -join '; '). See output above for details." -ForegroundColor Yellow
+    }
     if (@($script:AppRemovalDeferredApps).Count -gt 0) {
         Write-Host ""
         Write-Host "$(@($script:AppRemovalDeferredApps).Count) app removal(s) will finish at the next sign-in: $($script:AppRemovalDeferredApps -join ', ')." -ForegroundColor Yellow
@@ -690,7 +742,7 @@ function Invoke-AllChanges {
             -FailedApps        @($script:AppRemovalFailedApps) `
             -DeferredApps      @($script:AppRemovalDeferredApps) `
             -AppVerificationUnavailable $script:AppRemovalVerificationUnavailable `
-            -FeatureErrors     @() `
+            -FeatureErrors     @($script:FeatureStepFailures) `
             -StartTime         $script:RunStartTime `
             -WinnowVersion   $version
     }

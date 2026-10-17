@@ -33,6 +33,11 @@ Describe 'Winnow apply round trip' -Tag 'Mutating' {
     It 'applies a registry-backed feature and reports it compliant' -Skip:(-not $script:IsElevated) {
         $apply = Invoke-WinnowProcess -Arguments @('-Silent', '-CLI', '-DisableTelemetry') -TimeoutSeconds 300
         $apply.TimedOut | Should -BeFalse
+        # DisableTelemetry also disables the telemetry scheduled tasks. A failed
+        # task step now fails the run instead of passing silently.
+        $apply.Stdout | Should -Not -Match 'Failed to disable Scheduled Task'
+        $apply.Stdout | Should -Not -Match 'feature step\(s\) failed'
+        $apply.ExitCode | Should -Be 0
 
         $verify = Invoke-WinnowProcess -Arguments @('-Verify', '-VerifyProfile', $script:profilePath)
         $verify.TimedOut | Should -BeFalse
