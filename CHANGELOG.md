@@ -10,6 +10,10 @@ Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Ve
 
 - The Spanish (es-ES) catalogue now translates all 115 features: label, tooltip, apply text and undo text. It covered 7 before, so a Spanish UI showed mostly English labels on the Tweaks tab and English progress text while applying. Windows' own Spanish names are used where they exist (Contenido destacado de Windows, Encontrar mi dispositivo, Vínculo móvil, Teclas especiales, Espacio aislado de Windows, Subsistema de Windows para Linux); product names without an established translation are kept (Click to Do, Drag Tray, Recall). Combo group labels and the "No Change" option are still English; no catalogue supports them yet.
 
+### Fixed
+
+- In Spanish, the description under the app removal scope dropdown kept saying apps would be removed for all users and from the Windows image, whichever scope was selected. The description was chosen by matching the dropdown text against English, and that text is translated. It now matches the item's name, and the current-user and target-user descriptions are translated too.
+
 ## [4.4.4] - 2026-10-17
 
 ### Fixed

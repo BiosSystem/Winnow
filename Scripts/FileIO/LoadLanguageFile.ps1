@@ -279,6 +279,40 @@ function Get-LocalizedXaml {
     return [regex]::Replace($markup, $pattern, $evaluator)
 }
 
+function Get-WinnowChromeText {
+    <#
+        .SYNOPSIS
+        Returns the localized form of a UI string that is set from code
+        rather than from XAML markup.
+
+        .DESCRIPTION
+        Chrome entries are keyed by their English text, the same catalogue
+        Get-LocalizedXaml uses for markup. Text a script assigns at run time
+        never passes through the markup substitution, so it is looked up here.
+        Falls back to the en-US catalogue, then to the text itself.
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [string]$Text
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Text)) {
+        return $Text
+    }
+
+    foreach ($catalogue in @($script:Language, $script:Language.Fallback)) {
+        if (-not $catalogue -or -not $catalogue.Chrome) { continue }
+
+        $entry = $catalogue.Chrome.PSObject.Properties[$Text]
+        if ($entry -and -not [string]::IsNullOrWhiteSpace([string]$entry.Value)) {
+            return [string]$entry.Value
+        }
+    }
+
+    return $Text
+}
+
 <#
     .SYNOPSIS
     Returns the localized display name for a feature category.
