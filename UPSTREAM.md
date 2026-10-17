@@ -4,14 +4,66 @@
 
 - Upstream repository: `Raphire/Win11Debloat`
 - Upstream branch: `master`
-- Reviewed commit: `3202466` (upstream `master` head at review time)
-- Reviewed date: 2026-09-12
-- Last re-checked: 2026-09-18 (upstream `master` still `3202466`, no new commits)
-- Previous baseline: `6012b02` (2026-09-05)
-- Winnow release line: `4.2.0`
+- Reviewed commit: `bcf4471` (upstream `master` head at review time)
+- Reviewed date: 2026-10-17
+- Last re-checked: 2026-10-17
+- Previous baseline: `3202466` (2026-09-12)
+- Winnow release line: `4.3.1`
 - Upstream changelog review: July 11 2026 upstream release (dropped CustomAppsList format, retired legacy CLI app removal, fixed Copilot removal, dropped sunset apps)
 
 ## Upstream Review Log
+
+### 2026-10-17 review: `3202466` to `bcf4471`
+
+Thirty-two upstream commits since the last baseline. Most are localization (ja-JP, zh-CN, nl-NL,
+it-IT, pt-BR app and feature strings), a theme/language settings dialog, and UI accessibility
+polish, none of which Winnow shares. Every non-localization commit was diffed for a bundled fix:
+
+- `ab34b30` "compare binary and multi-string registry data in order" (#818) is a real bug and
+  Winnow had the same one. `Test-FeatureApplied` compared array values with `Compare-Object`,
+  which is set-based and calls `1,2,3` equal to `3,2,1`. For REG_BINARY and REG_MULTI_SZ the
+  order is part of the value, so an applied-state read could report a feature applied when the
+  value differed. Ported to `GetCurrentTweakState.ps1`: Binary and MultiString now compare
+  position by position, with both sides normalised to arrays by kind (the .reg parser hands back
+  a single element as a scalar and an empty one as `$null`). Covered by the new
+  `Test-TweakStateRegistryComparison.ps1`, which drives the real function through its generic
+  SetValue path; the comparison previously had no unit coverage. Tracked as issue #88.
+- `4079b27` "quote argument values passed on by Get.ps1" (#793) is already present in Winnow:
+  `Get.ps1` builds launcher arguments through `Format-LauncherArg`, which does the same
+  backslash/quote escaping for `CommandLineToArgvW`. Nothing to port.
+- `5f3c277` "give the import/export window's CategoryDetails a hashtable default" (#817): Winnow's
+  `Build-CategoryDetails` already returns a hashtable and is covered by `Test-GuiConfigLogic.ps1`.
+- `a7e6538` "enhance FindName reference validation" (#826): Winnow validates its XAML through
+  `Test-GuiXamlSchemas.ps1` (loads every schema in an STA runspace). Different mechanism, same
+  guarantee; not ported.
+
+Deliberately not ported, recorded for a later decision rather than as missing fixes:
+
+- `5ca1b70` "remove the DisableSearchHistory and DisableSearchHighlights switches" (#800).
+  Removing two user-facing switches (and their presets/reg files) is a breaking CLI change;
+  whether the underlying keys are now inert on 24H2/25H2/26H2 needs a Sandbox check before Winnow
+  drops them. Left in place pending that.
+- `8942447` "fix uninstallation of user-scope apps in WinGet with deferred uninstall" (#802) is a
+  feature: defer the uninstall via a scheduled task when winget cannot remove a user-scope app
+  while elevated, with dedup. Winnow already schedules a RunOnce winget task for `-User`/`-Sysprep`
+  but does not yet handle the elevated-admin-cannot-remove-user-scope case. Candidate enhancement,
+  its own effort.
+- `6092513` "add an option to disable Google Chrome AI features" (#763) and `adf57d1` Edge AI also
+  hiding the Copilot Chat button (#811): net-new third-party-browser AI toggles, not OS policy.
+  Candidate features.
+- `7d286ed` "Bing News -> Microsoft News" app rename (#810): metadata freshness, handled
+  separately from this review.
+
+AI/telemetry currency: re-read the authoritative WindowsAI Policy CSP
+(`learn.microsoft.com/.../policy-csp-windowsai`, ms.date 2026-09-10). Winnow already covers every
+documented consumer-facing disable policy (AllowRecallEnablement, DisableAIDataAnalysis,
+DisableClickToDo, DisableSettingsAgent, the three Paint policies, TurnOffWindowsCopilot). The 26H2
+Copilot surfaces (File Explorer, Windows Search) have no documented policy key; the newer agentic
+policies (ConfigureAgentConnectors, AgentConnectorAccessPolicy, DisableRecallDataProviders) are
+Insider-only, Enterprise/Education only, and several carry no registry mapping on the page. No AI
+policy keys added; inventing keys for undocumented surfaces is out of policy.
+
+### 2026-09-18 re-check: no change
 
 ### 2026-09-18 re-check: no change
 
