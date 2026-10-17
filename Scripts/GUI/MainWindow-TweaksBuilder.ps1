@@ -13,6 +13,22 @@ function Build-DynamicTweaks {
         throw "Unable to load Features.json file. The GUI cannot continue without feature definitions."
     }
 
+    # Features.json is read again here for its groups and category order, but
+    # the feature text has to come from $script:Features, which Winnow.ps1
+    # overlaid with the active language at startup. Building from this fresh
+    # copy alone showed every label and tooltip in English.
+    if ($script:Features) {
+        foreach ($f in $featuresJson.Features) {
+            if (-not $script:Features.ContainsKey($f.FeatureId)) { continue }
+            $localized = $script:Features[$f.FeatureId]
+            foreach ($key in 'Label', 'ToolTip', 'UndoLabel', 'ApplyText', 'ApplyUndoText') {
+                if ($f.PSObject.Properties[$key] -and -not [string]::IsNullOrWhiteSpace([string]$localized.$key)) {
+                    $f.$key = $localized.$key
+                }
+            }
+        }
+    }
+
     # Column containers
     $col0 = $Window.FindName('Column0Panel')
     $col1 = $Window.FindName('Column1Panel')
@@ -136,8 +152,12 @@ function Build-DynamicTweaks {
         $icon.Style = $Window.Resources['CategoryHeaderIcon']
         $headerRow.Children.Add($icon) | Out-Null
 
+        # The English name stays the grouping key and the wiki anchor; only
+        # the displayed header is translated.
+        $categoryDisplayName = Get-WinnowCategoryText -Category $categoryName
+
         $header = New-Object System.Windows.Controls.TextBlock
-        $header.Text = $categoryName
+        $header.Text = $categoryDisplayName
         $header.Style = $Window.Resources['CategoryHeaderTextBlock']
         $headerRow.Children.Add($header) | Out-Null
 
@@ -147,7 +167,7 @@ function Build-DynamicTweaks {
 
         $helpBtn = New-Object System.Windows.Controls.Button
         $helpBtn.Content = $helpIcon
-        $helpBtn.ToolTip = "Open the wiki for more info on '$categoryName' tweaks"
+        $helpBtn.ToolTip = "Open the wiki for more info on '$categoryDisplayName' tweaks"
         $helpBtn.Tag = (GetWikiUrlForCategory -category $categoryName)
         $helpBtn.Style = $Window.Resources['CategoryHelpLinkButtonStyle']
         $helpBtn.Add_Click({

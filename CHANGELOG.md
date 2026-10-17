@@ -4,6 +4,12 @@ Document all notable Winnow changes in this file. Releases before 4.0.0 were pub
 
 Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- The Tweaks tab showed its feature labels, tooltips and category headers in English whatever the selected language. The language was applied to the feature table at startup, but the tab was built from a fresh, untranslated read of Features.json, and the category headers never went through the translation lookup at all. In Spanish the tab now shows the translated labels (for example "Desactivar Microsoft Copilot") and category names. Combo group labels and the "No Change" option are not translated by any catalogue yet.
+
 ## [4.4.3] - 2026-10-17
 
 ### Fixed
