@@ -6,9 +6,9 @@
 - Upstream branch: `master`
 - Reviewed commit: `bcf4471` (upstream `master` head at review time)
 - Reviewed date: 2026-10-17
-- Last re-checked: 2026-10-17
+- Last re-checked: 2026-10-17 (after the 4.4.0 release; upstream `master` still `bcf4471`)
 - Previous baseline: `3202466` (2026-09-12)
-- Winnow release line: `4.3.1`
+- Winnow release line: `4.4.0`
 - Upstream changelog review: July 11 2026 upstream release (dropped CustomAppsList format, retired legacy CLI app removal, fixed Copilot removal, dropped sunset apps)
 
 ## Upstream Review Log
