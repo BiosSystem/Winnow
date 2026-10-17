@@ -288,6 +288,32 @@ Describe 'Winnow localization' {
                 Should -Be 'Privacidad y contenido sugerido'
         }
 
+        It 'translates dropdown group text and options' {
+            Get-WinnowGroupText -GroupId 'ExplorerLocation' -Key Label -Text 'Open File Explorer to' |
+                Should -Be 'Abrir el Explorador de archivos en'
+            Get-WinnowGroupText -GroupId 'ExplorerLocation' -Key Value -Text 'This PC' | Should -Be 'Este equipo'
+            Get-WinnowChromeText -Text 'No Change' | Should -Be 'Sin cambios'
+        }
+
+        It 'falls back to the English text for an unknown group or option' {
+            Get-WinnowGroupText -GroupId 'NoSuchGroup' -Key Label -Text 'English label' | Should -Be 'English label'
+            Get-WinnowGroupText -GroupId 'ExplorerLocation' -Key Value -Text 'Not an option' | Should -Be 'Not an option'
+        }
+
+        It 'defines no group or option that en-US does not' {
+            $en = (LoadJsonFile -filePath (Join-Path $script:realLanguagesPath 'en-US\Features.json')).UiGroups
+            $es = (LoadJsonFile -filePath (Join-Path $script:realLanguagesPath 'es-ES\Features.json')).UiGroups
+
+            $unknown = foreach ($group in $es.PSObject.Properties) {
+                $english = $en.PSObject.Properties[$group.Name]
+                if (-not $english) { $group.Name; continue }
+                foreach ($value in $group.Value.Values.PSObject.Properties.Name) {
+                    if (-not $english.Value.Values.PSObject.Properties[$value]) { '{0}.{1}' -f $group.Name, $value }
+                }
+            }
+            @($unknown) | Should -BeNullOrEmpty -Because "es-ES UiGroups entries absent from en-US: $(@($unknown) -join ', ')"
+        }
+
         It 'translates text set from code through the Chrome catalogue' {
             Get-WinnowChromeText -Text 'All users' | Should -Be 'Todos los usuarios'
             Get-WinnowChromeText -Text 'Not in any catalogue' | Should -Be 'Not in any catalogue'
@@ -374,6 +400,30 @@ Describe 'Winnow localization' {
             }
 
             $drift | Should -BeNullOrEmpty -Because "en-US catalogue has drifted from Features.json: $($drift -join ', ')"
+        }
+
+        It 'mirrors every UiGroups label, tooltip and option exactly' {
+            # Option labels are lookup keys, so an option renamed in
+            # Features.json without the catalogue would silently stay English.
+            $catalogue = LoadJsonFile -filePath (Join-Path $script:realLanguagesPath 'en-US\Features.json')
+            $groups = (Get-Content (Join-Path (Split-Path $script:realLanguagesPath -Parent) 'Features.json') -Raw | ConvertFrom-Json).UiGroups
+
+            $drift = [System.Collections.Generic.List[string]]::new()
+            foreach ($group in $groups) {
+                $entry = $catalogue.UiGroups.PSObject.Properties[$group.GroupId]
+                if (-not $entry) { $drift.Add("$($group.GroupId) missing"); continue }
+                if ($entry.Value.Label -ne $group.Label) { $drift.Add("$($group.GroupId).Label") }
+                if ([string]$entry.Value.ToolTip -ne [string]$group.ToolTip) { $drift.Add("$($group.GroupId).ToolTip") }
+
+                $sourceValues = @($group.Values | ForEach-Object { $_.Label })
+                $catalogueValues = @($entry.Value.Values.PSObject.Properties | ForEach-Object { $_.Name })
+                foreach ($value in $sourceValues) {
+                    if ($value -notin $catalogueValues -or $entry.Value.Values.$value -ne $value) { $drift.Add("$($group.GroupId).Values['$value']") }
+                }
+                foreach ($stale in @($catalogueValues | Where-Object { $_ -notin $sourceValues })) { $drift.Add("$($group.GroupId).Values['$stale'] stale") }
+            }
+
+            $drift | Should -BeNullOrEmpty -Because "en-US UiGroups drifted from Features.json: $($drift -join ', ')"
         }
 
         It 'covers every category' {

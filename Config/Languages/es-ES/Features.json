@@ -725,5 +725,92 @@
       "UndoLabel": "Quitar los bloqueos de servidores de telemetría de Winnow",
       "ApplyUndoText": "Quitando los bloqueos de servidores de telemetría de Winnow"
     }
+  },
+  "UiGroups": {
+    "SearchIcon": {
+      "Label": "Estilo de búsqueda de la barra de tareas",
+      "ToolTip": "Permite personalizar el aspecto de la búsqueda en la barra de tareas.",
+      "Values": {
+        "Show search box (Default)": "Mostrar el cuadro de búsqueda (predeterminado)",
+        "Show search icon and label": "Mostrar el icono de búsqueda con etiqueta",
+        "Show search icon only": "Mostrar solo el icono de búsqueda",
+        "Hide": "Ocultar"
+      }
+    },
+    "MultiMon": {
+      "Label": "Mostrar las aplicaciones de la barra de tareas en",
+      "ToolTip": "Permite elegir dónde se muestran los botones de las aplicaciones de la barra de tareas al usar varios monitores.",
+      "Values": {
+        "All taskbars (Default)": "Todas las barras de tareas (predeterminado)",
+        "Main taskbar and taskbar where window is open": "La barra principal y la barra donde está abierta la ventana",
+        "Taskbar where window is open": "La barra donde está abierta la ventana"
+      }
+    },
+    "CombineButtons": {
+      "Label": "Combinar los botones de la barra de tareas en la pantalla principal",
+      "ToolTip": "Permite elegir cómo se combinan los botones de la barra de tareas en la pantalla principal.",
+      "Values": {
+        "Always (Default)": "Siempre (predeterminado)",
+        "When taskbar is full": "Cuando la barra de tareas esté llena",
+        "Never": "Nunca"
+      }
+    },
+    "CombineMMButtons": {
+      "Label": "Combinar los botones de la barra de tareas en las pantallas secundarias",
+      "ToolTip": "Permite elegir cómo se combinan los botones de la barra de tareas en las pantallas secundarias.",
+      "Values": {
+        "Always (Default)": "Siempre (predeterminado)",
+        "When taskbar is full": "Cuando la barra de tareas esté llena",
+        "Never": "Nunca"
+      }
+    },
+    "ClearStart": {
+      "Label": "Quitar las aplicaciones ancladas del menú Inicio",
+      "ToolTip": "Permite quitar rápidamente todas las aplicaciones ancladas del menú Inicio.",
+      "Values": {
+        "Remove for the selected user": "Quitar para el usuario seleccionado",
+        "Remove for all users": "Quitar para todos los usuarios"
+      }
+    },
+    "ExplorerLocation": {
+      "Label": "Abrir el Explorador de archivos en",
+      "ToolTip": "Permite elegir la ubicación en la que se abre el Explorador de archivos.",
+      "Values": {
+        "Home (Default)": "Inicio (predeterminado)",
+        "This PC": "Este equipo",
+        "Downloads": "Descargas",
+        "OneDrive": "OneDrive"
+      }
+    },
+    "DriveLetterPosition": {
+      "Label": "Posición de la letra de unidad",
+      "ToolTip": "Permite elegir dónde se muestran las letras de unidad en el Explorador de archivos.",
+      "Values": {
+        "Show drive letters after drive label (Default)": "Mostrar la letra después del nombre de la unidad (predeterminado)",
+        "Show drive letters before drive label": "Mostrar la letra antes del nombre de la unidad",
+        "Show network drive letters before drive label": "Mostrar la letra de las unidades de red antes del nombre",
+        "Hide all drive letters": "Ocultar todas las letras de unidad"
+      }
+    },
+    "ShowTabsInAltTab": {
+      "Label": "Mostrar las pestañas de las aplicaciones al acoplar o pulsar Alt+Tab",
+      "ToolTip": "Permite elegir si se muestran las pestañas de las aplicaciones (como las pestañas de Edge) al acoplar ventanas o pulsar Alt+Tab.",
+      "Values": {
+        "Don't show tabs": "No mostrar pestañas",
+        "Show 3 most recent tabs (Default)": "Mostrar las 3 pestañas más recientes (predeterminado)",
+        "Show 5 most recent tabs": "Mostrar las 5 pestañas más recientes",
+        "Show 20 most recent tabs": "Mostrar las 20 pestañas más recientes"
+      }
+    },
+    "StartAllAppsView": {
+      "Label": "Vista 'Todas las aplicaciones' del menú Inicio",
+      "ToolTip": "Permite cambiar el diseño de la sección 'Todas las aplicaciones' del menú Inicio u ocultarla por completo. Ocultarla puede dificultar encontrar las aplicaciones instaladas en el sistema. Esta característica usa directivas, que bloquearán algunas opciones de configuración.",
+      "Values": {
+        "Hide": "Ocultar",
+        "Category (Default)": "Categorías (predeterminado)",
+        "Grid": "Cuadrícula",
+        "List": "Lista"
+      }
+    }
   }
 }

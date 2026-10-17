@@ -725,5 +725,92 @@
       "UndoLabel": "Remove Winnow telemetry endpoint blocks",
       "ApplyUndoText": "Removing Winnow telemetry endpoint blocks"
     }
+  },
+  "UiGroups": {
+    "SearchIcon": {
+      "Label": "Taskbar search style",
+      "ToolTip": "This setting allows you to customize the appearance of the search box on the taskbar.",
+      "Values": {
+        "Show search box (Default)": "Show search box (Default)",
+        "Show search icon and label": "Show search icon and label",
+        "Show search icon only": "Show search icon only",
+        "Hide": "Hide"
+      }
+    },
+    "MultiMon": {
+      "Label": "Show taskbar apps on",
+      "ToolTip": "This setting allows you to choose where taskbar app buttons are shown when using multiple monitors.",
+      "Values": {
+        "All taskbars (Default)": "All taskbars (Default)",
+        "Main taskbar and taskbar where window is open": "Main taskbar and taskbar where window is open",
+        "Taskbar where window is open": "Taskbar where window is open"
+      }
+    },
+    "CombineButtons": {
+      "Label": "Combine taskbar buttons on the main display",
+      "ToolTip": "This setting allows you to choose how taskbar buttons are combined on the main display.",
+      "Values": {
+        "Always (Default)": "Always (Default)",
+        "When taskbar is full": "When taskbar is full",
+        "Never": "Never"
+      }
+    },
+    "CombineMMButtons": {
+      "Label": "Combine taskbar buttons on secondary displays",
+      "ToolTip": "This setting allows you to choose how taskbar buttons are combined on secondary displays.",
+      "Values": {
+        "Always (Default)": "Always (Default)",
+        "When taskbar is full": "When taskbar is full",
+        "Never": "Never"
+      }
+    },
+    "ClearStart": {
+      "Label": "Remove pinned apps from the start menu",
+      "ToolTip": "This setting allows you to quickly remove all pinned apps from the start menu.",
+      "Values": {
+        "Remove for the selected user": "Remove for the selected user",
+        "Remove for all users": "Remove for all users"
+      }
+    },
+    "ExplorerLocation": {
+      "Label": "Open File Explorer to",
+      "ToolTip": "This setting allows you to choose the default location that File Explorer opens to.",
+      "Values": {
+        "Home (Default)": "Home (Default)",
+        "This PC": "This PC",
+        "Downloads": "Downloads",
+        "OneDrive": "OneDrive"
+      }
+    },
+    "DriveLetterPosition": {
+      "Label": "Drive letter position",
+      "ToolTip": "This setting allows you to choose where drive letters are shown in File Explorer.",
+      "Values": {
+        "Show drive letters after drive label (Default)": "Show drive letters after drive label (Default)",
+        "Show drive letters before drive label": "Show drive letters before drive label",
+        "Show network drive letters before drive label": "Show network drive letters before drive label",
+        "Hide all drive letters": "Hide all drive letters"
+      }
+    },
+    "ShowTabsInAltTab": {
+      "Label": "Show tabs from apps when snapping or pressing Alt+Tab",
+      "ToolTip": "This setting allows you to choose whether to show tabs from apps (such as Edge browser tabs) when snapping windows or pressing Alt+Tab.",
+      "Values": {
+        "Don't show tabs": "Don't show tabs",
+        "Show 3 most recent tabs (Default)": "Show 3 most recent tabs (Default)",
+        "Show 5 most recent tabs": "Show 5 most recent tabs",
+        "Show 20 most recent tabs": "Show 20 most recent tabs"
+      }
+    },
+    "StartAllAppsView": {
+      "Label": "Start menu 'All Apps' view",
+      "ToolTip": "This setting allows you to change the layout of the 'All Apps' section in the start menu, or hide it entirely. Hiding this section may make it harder to find installed apps on your system. This feature uses policies, which will lock down certain settings.",
+      "Values": {
+        "Hide": "Hide",
+        "Category (Default)": "Category (Default)",
+        "Grid": "Grid",
+        "List": "List"
+      }
+    }
   }
 }

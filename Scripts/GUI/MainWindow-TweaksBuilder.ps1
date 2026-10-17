@@ -304,7 +304,7 @@ function Build-DynamicTweaks {
                         $soleFeature = $featureMap[$soleFid]
                         $opt = 'Apply'
                         if ($soleFeature.FeatureId -match '^Disable') { $opt = 'Disable' } elseif ($soleFeature.FeatureId -match '^Enable') { $opt = 'Enable' }
-                        $items = @('No Change', $opt)
+                        $items = @((Get-WinnowChromeText -Text 'No Change'), (Get-WinnowChromeText -Text $opt))
                         $comboName = ("Feature_{0}_Combo" -f $soleFeature.FeatureId) -replace '[^a-zA-Z0-9_]', ''
                         $combo = CreateLabeledCombo -parent $panel -labelText $soleFeature.Label -comboName $comboName -items $items
                         # attach tooltip from Features.json if present
@@ -328,13 +328,18 @@ function Build-DynamicTweaks {
                     continue
                 }
 
-                $items = @('No Change') + ($filteredValues | ForEach-Object { $_.Label })
+                # Displayed text is translated; selection stays index-based, so
+                # what is applied does not depend on it.
+                $groupLabel = Get-WinnowGroupText -GroupId $group.GroupId -Key Label -Text $group.Label
+                $items = @(Get-WinnowChromeText -Text 'No Change') + @($filteredValues | ForEach-Object {
+                        Get-WinnowGroupText -GroupId $group.GroupId -Key Value -Text $_.Label
+                    })
                 $comboName = 'Group_{0}Combo' -f $group.GroupId
-                $combo = CreateLabeledCombo -parent $panel -labelText $group.Label -comboName $comboName -items $items
+                $combo = CreateLabeledCombo -parent $panel -labelText $groupLabel -comboName $comboName -items $items
                 # attach tooltip from UiGroups if present
                 if ($group.ToolTip) {
                     $tipBlock = New-Object System.Windows.Controls.TextBlock
-                    $tipBlock.Text = $group.ToolTip
+                    $tipBlock.Text = Get-WinnowGroupText -GroupId $group.GroupId -Key ToolTip -Text $group.ToolTip
                     $tipBlock.TextWrapping = 'Wrap'
                     $tipBlock.MaxWidth = 420
                     $combo.ToolTip = $tipBlock
@@ -342,13 +347,13 @@ function Build-DynamicTweaks {
                     try { $lblBorderObj = $Window.FindName("$comboName`_LabelBorder") } catch {}
                     if ($lblBorderObj) { $lblBorderObj.ToolTip = $tipBlock }
                 }
-                $script:UiControlMappings[$comboName] = @{ Type = 'group'; Values = $filteredValues; Label = $group.Label; Category = $categoryName }
+                $script:UiControlMappings[$comboName] = @{ Type = 'group'; Values = $filteredValues; Label = $groupLabel; Category = $categoryName }
             }
             elseif ($item.Type -eq 'feature') {
                 $feature = $item.Data
                 $opt = 'Apply'
                 if ($feature.FeatureId -match '^Disable') { $opt = 'Disable' } elseif ($feature.FeatureId -match '^Enable') { $opt = 'Enable' }
-                $items = @('No Change', $opt)
+                $items = @((Get-WinnowChromeText -Text 'No Change'), (Get-WinnowChromeText -Text $opt))
                 $comboName = ("Feature_{0}_Combo" -f $feature.FeatureId) -replace '[^a-zA-Z0-9_]', ''
                 $combo = CreateLabeledCombo -parent $panel -labelText $feature.Label -comboName $comboName -items $items
                 # attach tooltip from Features.json if present, and include the disabled-state reason

@@ -125,6 +125,10 @@
     "Visit the wiki for more information": "Visit the wiki for more information",
     "StartMenu": "StartMenu",
     "This will restore the Start Menu pinned apps layout for the selected user(s) using a backup that is automatically created by Winnow. Manually created backups can also be used.": "This will restore the Start Menu pinned apps layout for the selected user(s) using a backup that is automatically created by Winnow. Manually created backups can also be used.",
-    "Automatically find Start Menu backup": "Automatically find Start Menu backup"
+    "Automatically find Start Menu backup": "Automatically find Start Menu backup",
+    "No Change": "No Change",
+    "Apply": "Apply",
+    "Disable": "Disable",
+    "Enable": "Enable"
   }
 }
