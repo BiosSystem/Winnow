@@ -1,3 +1,11 @@
+## [v4.4.4] - 2026-10-17
+### Artifacts
+- **Release Package**: Winnow-v4.4.4.zip
+- **Standalone**: Winnow-Standalone.ps1
+- Both built and published by the release workflow on tag push. Checksums are on the release page.
+### Fixed
+- The Tweaks tab showed feature labels, tooltips and category headers in English whatever the selected language. It now shows the translated text (for example "Desactivar Microsoft Copilot" and the Spanish category names). Combo group labels and the "No Change" option are not translated yet.
+
 ## [v4.4.3] - 2026-10-17
 ### Artifacts
 - **Release Package**: Winnow-v4.4.3.zip
