@@ -247,6 +247,13 @@
       "UndoLabel": "Enable AI features in Microsoft Edge",
       "ApplyUndoText": "Enabling AI features in Microsoft Edge"
     },
+    "DisableChromeAI": {
+      "Label": "Disable AI features in Google Chrome",
+      "ToolTip": "This will turn off AI features in Google Chrome, such as Gemini, AI Mode, Help Me Write, AI history search, Tab Compare and on-device AI model downloads. This feature uses policies, which will lock down certain settings.",
+      "ApplyText": "Disabling AI features in Google Chrome",
+      "UndoLabel": "Enable AI features in Google Chrome",
+      "ApplyUndoText": "Enabling AI features in Google Chrome"
+    },
     "DisablePaintAI": {
       "Label": "Disable AI features in Paint",
       "ToolTip": "This will turn off AI features in Paint, such as the AI-powered image generation and editing tools. This feature uses policies, which will lock down certain settings.",

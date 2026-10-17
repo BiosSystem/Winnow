@@ -84,6 +84,7 @@ param (
     [switch]$DisablePhotosGenerativeFill,
     [switch]$DisableNotepadAI,
     [switch]$DisableEdgeAI,
+    [switch]$DisableChromeAI,
     [switch]$DisableSuggestedClipboardActions,
     [switch]$DisableM365AutoInstall,
     [switch]$DisableNarratorAIVoices,
