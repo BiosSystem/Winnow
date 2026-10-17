@@ -150,15 +150,32 @@ so its hardening was ported manually:
 - Returned `$true`/`$false`. Both `Request-EdgeForceRemove` call sites discard the result
   with `$null =` to keep the caller's pipeline output unchanged.
 
-#### Deferred
+#### Remaining `ef8811d` changes: resolved 2026-10-17
 
-The remaining `ef8811d` changes target files where Winnow content has diverged
-substantially, so each needs an individual port rather than a patch application. Not
-scheduled, tracked here so the decision is not relitigated:
+The rest of `ef8811d` targeted files where Winnow had diverged, so each was reviewed for the
+failure mode it fixed rather than patched in:
 
-`RemoveApps.ps1`, `ImportRegistryFile.ps1`, `InvokeChanges.ps1`,
-`CreateSystemRestorePoint.ps1`, `ReplaceStartMenu.ps1`, `StoreSearchSuggestions.ps1`,
-`TelemetryScheduledTasks.ps1`, `WindowsOptionalFeatures.ps1`, and the GUI call sites.
+- `TelemetryScheduledTasks.ps1`, `WindowsOptionalFeatures.ps1`, `ReplaceStartMenu.ps1`,
+  `StoreSearchSuggestions.ps1`, `InvokeChanges.ps1`: Winnow had the same bug class. Steps outside
+  the registry import printed their errors and the run still finished as a success with exit
+  code 0. Re-implemented against Winnow's engine in #107/#108: each step returns a result,
+  `Add-FeatureStepFailure` records failures, which reach the console summary, the run summary
+  (`FeatureErrors`), the GUI panel and the exit code, without triggering rollback. Task lookups
+  only treat `ObjectNotFound` as a missing task.
+- `ImportRegistryFile.ps1`: already covered. A missing file and a writer that applies nothing
+  both increment `RegistryImportFailures`, and `Write-RegistryFallbackResult` (4.3.0) stopped the
+  fallback path from claiming success after skipped writes.
+- `CreateSystemRestorePoint.ps1`: not ported. Upstream reads `-Silent` from `$script:Params` as
+  well; in Winnow `-Silent` only ever arrives on the command line, so the existing check works.
+  Upstream also gives up when the System Restore setting cannot be read, where Winnow still tries
+  to create the point.
+- `RemoveApps.ps1`: Winnow already verifies each removal after the fact and reports failures;
+  the deferred user-scope case was ported separately (#98/#99).
+- GUI call sites: the Store/config import validation was ported with `Test-ConfigConsistency`
+  (below). The app-removal scope guard is not needed: Winnow's scope list is three fixed, named
+  items with All users preselected, and the target-user name is validated before deploy, so an
+  empty or unknown scope cannot reach the apply. The completion message keeps Winnow's per-kind
+  breakdown rather than upstream's single count.
 
 `Test-ConfigConsistency.ps1` was ported on 2026-09-13, no longer deferred. It was not
 cherry-picked: upstream's version returns `Get-Translation` message keys, which Winnow has no
