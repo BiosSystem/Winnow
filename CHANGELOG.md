@@ -4,6 +4,12 @@ Document all notable Winnow changes in this file. Releases before 4.0.0 were pub
 
 Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- The Spanish home screen cut off the Custom Setup button label ("Configuración personalizada"). The two home buttons had a fixed width inside a fixed-width card; they now share a two-column grid with a minimum width and the card a minimum width, so both grow to fit the longer label and stay equal. English renders exactly as before.
+
 ## [4.4.1] - 2026-10-17
 
 ### Fixed
