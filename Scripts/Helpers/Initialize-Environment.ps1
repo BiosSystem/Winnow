@@ -53,6 +53,8 @@ $script:AppRemovalRemovedApps = @()
 $script:AppRemovalFailedApps = @()
 # Winget uninstalls refused for a user-scope package and scheduled for the next sign-in.
 $script:AppRemovalDeferredApps = @()
+# Feature steps outside the registry import that failed: @{ FeatureId; Message }.
+$script:FeatureStepFailures = @()
 
 # Rollback state for the current run. The backup path is captured in phase 1 so
 # the apply phase can restore from it without re-reading the Backups folder.

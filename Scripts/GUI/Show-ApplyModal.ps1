@@ -106,7 +106,8 @@ function Show-ApplyModal {
 
             $registryImportFailureCount = [int]$script:RegistryImportFailures
             $appRemovalFailureCount     = [int]$script:AppRemovalFailures
-            $totalFailureCount          = $registryImportFailureCount + $appRemovalFailureCount
+            $featureStepFailureCount    = @($script:FeatureStepFailures).Count
+            $totalFailureCount          = $registryImportFailureCount + $appRemovalFailureCount + $featureStepFailureCount
 
             # Restart explorer if requested
             if ($RestartExplorer -and -not $script:CancelRequested) {
@@ -143,6 +144,7 @@ function Show-ApplyModal {
                 $failureParts = @()
                 if ($registryImportFailureCount -gt 0) { $failureParts += "$registryImportFailureCount registry change(s) failed" }
                 if ($appRemovalFailureCount -gt 0)     { $failureParts += "$appRemovalFailureCount app removal(s) failed" }
+                if ($featureStepFailureCount -gt 0)    { $failureParts += "$featureStepFailureCount feature step(s) failed" }
                 if ($script:AppRemovalVerificationUnavailable) { $failureParts += "some app removals could not be verified" }
                 $script:ApplyCompletionMessageEl.Text = "$($failureParts -join '; '). See console for details."
             } else {

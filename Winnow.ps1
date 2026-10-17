@@ -748,14 +748,14 @@ Write-Output "Script completed! Please check above for any errors."
 # from 3 rather than folding into a single "rolled back" code.
 # 'Skipped' means the apply failed but no rollback ran (-NoAutoRollback, or no
 # backup) so changes may persist: that is a failure, not success. A clean run
-# that still had registry-import or app-removal failures also exits 1 rather
-# than claiming success.
+# that still had registry-import, app-removal or feature-step failures also
+# exits 1 rather than claiming success.
 $rollbackExitCode = switch ($script:RunRollbackOutcome) {
     'RolledBack' { 3 }
     'RollbackFailed' { 4 }
     'Skipped' { 1 }
     default {
-        if (([int]$script:RegistryImportFailures + [int]$script:AppRemovalFailures) -gt 0) { 1 } else { 0 }
+        if (([int]$script:RegistryImportFailures + [int]$script:AppRemovalFailures + @($script:FeatureStepFailures).Count) -gt 0) { 1 } else { 0 }
     }
 }
 

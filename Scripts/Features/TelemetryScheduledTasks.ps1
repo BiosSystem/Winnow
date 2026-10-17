@@ -63,42 +63,9 @@ function Get-TelemetryScheduledTasks {
 #>
 function Disable-TelemetryScheduledTasks {
     Write-Host "> Disabling telemetry scheduled tasks..."
-    $tasks = Get-TelemetryScheduledTasks
-
-    foreach ($task in $tasks) {
-        if ($script:Params.ContainsKey("WhatIf")) {
-            Write-Host "[WhatIf] Disable Scheduled Task: $($task.Path)$($task.Name)" -ForegroundColor Cyan
-            continue
-        }
-
-        $result = Invoke-NonBlocking -ScriptBlock {
-            param($path, $name)
-            Import-Module ScheduledTasks -ErrorAction SilentlyContinue
-            $taskObj = Get-ScheduledTask -TaskPath $path -TaskName $name -ErrorAction SilentlyContinue
-            if (-not $taskObj) {
-                return @{ Success = $true; Status = 'NotFound' }
-            }
-            if ($taskObj.State -ne 'Disabled') {
-                try {
-                    Disable-ScheduledTask -TaskPath $path -TaskName $name -ErrorAction Stop | Out-Null
-                    return @{ Success = $true; Status = 'Disabled' }
-                }
-                catch {
-                    return @{ Success = $false; Status = 'Error'; Error = $_.Exception.Message }
-                }
-            }
-            return @{ Success = $true; Status = 'AlreadyDisabled' }
-        } -ArgumentList @($task.Path, $task.Name)
-
-        switch ($result.Status) {
-            'Disabled'        { Write-Host "Disabled Scheduled Task: $($task.Path)$($task.Name)" }
-            'AlreadyDisabled' { Write-Host "Scheduled Task $($task.Path)$($task.Name) is already disabled" -ForegroundColor DarkGray }
-            'NotFound'        { Write-Host "Scheduled Task $($task.Path)$($task.Name) not found" -ForegroundColor DarkGray }
-            'Error'           { Write-Host "Failed to disable Scheduled Task: $($task.Path)$($task.Name) - $($result.Error)" -ForegroundColor Yellow }
-        }
-    }
-
+    $success = Set-TelemetryScheduledTaskState -Enable:$false
     Write-Host ""
+    return $success
 }
 
 <#
@@ -115,40 +82,91 @@ function Disable-TelemetryScheduledTasks {
 #>
 function Enable-TelemetryScheduledTasks {
     Write-Host "> Enabling telemetry scheduled tasks..."
-    $tasks = Get-TelemetryScheduledTasks
+    $success = Set-TelemetryScheduledTaskState -Enable:$true
+    Write-Host ""
+    return $success
+}
 
-    foreach ($task in $tasks) {
+<#
+    .SYNOPSIS
+    Enables or disables each telemetry scheduled task and reports whether all
+    of them ended up in the requested state.
+
+    .DESCRIPTION
+    A task that does not exist counts as done. A lookup that fails for any
+    other reason (access denied, the ScheduledTasks module failing to load)
+    is a failure, not "not found": the lookup used to swallow every error,
+    so those cases were reported as fine.
+
+    .OUTPUTS
+    System.Boolean. $true when every task is in the requested state, absent,
+    or previewed under -WhatIf; otherwise $false.
+#>
+function Set-TelemetryScheduledTaskState {
+    param([bool]$Enable)
+
+    $verb = if ($Enable) { 'enable' } else { 'disable' }
+    $success = $true
+
+    foreach ($task in (Get-TelemetryScheduledTasks)) {
         if ($script:Params.ContainsKey("WhatIf")) {
-            Write-Host "[WhatIf] Enable Scheduled Task: $($task.Path)$($task.Name)" -ForegroundColor Cyan
+            Write-Host "[WhatIf] $(if ($Enable) { 'Enable' } else { 'Disable' }) Scheduled Task: $($task.Path)$($task.Name)" -ForegroundColor Cyan
             continue
         }
 
-        $result = Invoke-NonBlocking -ScriptBlock {
-            param($path, $name)
-            Import-Module ScheduledTasks -ErrorAction SilentlyContinue
-            $taskObj = Get-ScheduledTask -TaskPath $path -TaskName $name -ErrorAction SilentlyContinue
-            if (-not $taskObj) {
-                return @{ Success = $true; Status = 'NotFound' }
-            }
-            if ($taskObj.State -eq 'Disabled') {
+        try {
+            $result = Invoke-NonBlocking -ScriptBlock {
+                param($path, $name, $enable)
                 try {
-                    Enable-ScheduledTask -TaskPath $path -TaskName $name -ErrorAction Stop | Out-Null
-                    return @{ Success = $true; Status = 'Enabled' }
+                    Import-Module ScheduledTasks -ErrorAction Stop
+                    $taskObj = Get-ScheduledTask -TaskPath $path -TaskName $name -ErrorAction Stop
                 }
                 catch {
-                    return @{ Success = $false; Status = 'Error'; Error = $_.Exception.Message }
+                    if ($_.Exception -isnot [System.Management.Automation.CommandNotFoundException] -and
+                        $_.CategoryInfo.Category -eq [System.Management.Automation.ErrorCategory]::ObjectNotFound) {
+                        return @{ Status = 'NotFound' }
+                    }
+                    return @{ Status = 'Error'; Error = $_.Exception.Message }
                 }
-            }
-            return @{ Success = $true; Status = 'AlreadyEnabled' }
-        } -ArgumentList @($task.Path, $task.Name)
 
+                $isDisabled = $taskObj.State -eq 'Disabled'
+                if ($enable -ne $isDisabled) {
+                    return @{ Status = 'Unchanged' }
+                }
+
+                try {
+                    if ($enable) {
+                        Enable-ScheduledTask -TaskPath $path -TaskName $name -ErrorAction Stop | Out-Null
+                    }
+                    else {
+                        Disable-ScheduledTask -TaskPath $path -TaskName $name -ErrorAction Stop | Out-Null
+                    }
+                    return @{ Status = 'Changed' }
+                }
+                catch {
+                    return @{ Status = 'Error'; Error = $_.Exception.Message }
+                }
+            } -ArgumentList @($task.Path, $task.Name, $Enable)
+        }
+        catch {
+            $result = @{ Status = 'Error'; Error = $_.Exception.Message }
+        }
+
+        $taskName = "$($task.Path)$($task.Name)"
         switch ($result.Status) {
-            'Enabled'        { Write-Host "Enabled Scheduled Task: $($task.Path)$($task.Name)" }
-            'AlreadyEnabled' { Write-Host "Scheduled Task $($task.Path)$($task.Name) is already enabled." -ForegroundColor DarkGray }
-            'NotFound'       { Write-Host "Scheduled Task $($task.Path)$($task.Name) not found." -ForegroundColor DarkGray }
-            'Error'          { Write-Host "Failed to enable Scheduled Task: $($task.Path)$($task.Name) - $($result.Error)" -ForegroundColor Yellow }
+            'Changed'   { Write-Host "$(if ($Enable) { 'Enabled' } else { 'Disabled' }) Scheduled Task: $taskName" }
+            'Unchanged' { Write-Host "Scheduled Task $taskName is already $(if ($Enable) { 'enabled' } else { 'disabled' })" -ForegroundColor DarkGray }
+            'NotFound'  { Write-Host "Scheduled Task $taskName not found" -ForegroundColor DarkGray }
+            'Error' {
+                Write-Host "Failed to $verb Scheduled Task: $taskName - $($result.Error)" -ForegroundColor Yellow
+                $success = $false
+            }
+            default {
+                Write-Host "Failed to $verb Scheduled Task: $taskName - no result was returned" -ForegroundColor Yellow
+                $success = $false
+            }
         }
     }
 
-    Write-Host ""
+    return $success
 }
