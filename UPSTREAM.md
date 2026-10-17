@@ -37,22 +37,29 @@ polish, none of which Winnow shares. Every non-localization commit was diffed fo
   `Test-GuiXamlSchemas.ps1` (loads every schema in an STA runspace). Different mechanism, same
   guarantee; not ported.
 
-Deliberately not ported, recorded for a later decision rather than as missing fixes:
+Resolved after the review (2026-10-17), each as its own issue and pull request:
 
-- `5ca1b70` "remove the DisableSearchHistory and DisableSearchHighlights switches" (#800).
-  Removing two user-facing switches (and their presets/reg files) is a breaking CLI change;
-  whether the underlying keys are now inert on 24H2/25H2/26H2 needs a Sandbox check before Winnow
-  drops them. Left in place pending that.
-- `8942447` "fix uninstallation of user-scope apps in WinGet with deferred uninstall" (#802) is a
-  feature: defer the uninstall via a scheduled task when winget cannot remove a user-scope app
-  while elevated, with dedup. Winnow already schedules a RunOnce winget task for `-User`/`-Sysprep`
-  but does not yet handle the elevated-admin-cannot-remove-user-scope case. Candidate enhancement,
-  its own effort.
-- `6092513` "add an option to disable Google Chrome AI features" (#763) and `adf57d1` Edge AI also
-  hiding the Copilot Chat button (#811): net-new third-party-browser AI toggles, not OS policy.
-  Candidate features.
-- `7d286ed` "Bing News -> Microsoft News" app rename (#810): metadata freshness, handled
-  separately from this review.
+- `5ca1b70` "remove the DisableSearchHistory and DisableSearchHighlights switches" (#800): not
+  ported. Upstream's PR explains the cause: both features had already been dropped from their
+  Features.json (their #592), leaving orphaned switches that failed as "Unknown feature". In
+  Winnow both are fully wired features, so they stay. The guard upstream added with it is ported
+  in spirit: `Test-CliParameterParity.ps1` (Winnow #92/#93) fails if any `Winnow.ps1` parameter is
+  not a feature, a control parameter or a switch `Winnow.ps1` reads itself. Writing it also found
+  that `Get.ps1` could not forward 19 `Winnow.ps1` parameters, fixed in the same change, and that
+  `-Undo`/`-SoftwareList` treated a comma list as one value under `-File` (Winnow #90/#91).
+- `8942447` deferred uninstall of user-scope WinGet apps (#802): ported (Winnow #98/#99). Detection
+  by exit code with the message as fallback, RunOnce for the removal target (every profile plus
+  Default for AllUsers), deferred apps reported as deferred rather than failed. English-only
+  messages, matching the rest of Winnow's app-removal output.
+- `adf57d1` Edge AI hides the Copilot Chat button (#811): ported (Winnow #94/#95), after checking
+  `Microsoft365CopilotChatIconEnabled` against Microsoft's policy reference. That check also found
+  `CopilotCDPPageContext` obsolete after Edge 132; kept, since it is harmless.
+- `6092513` disable Google Chrome AI features (#763): ported with corrections (Winnow #96/#97). Each
+  value was checked against Chromium's GenerativeAI policy definitions. Upstream's
+  `FindAndFillWithGeminiSettings` does not exist; `AutofillGenAiSettings` is used instead.
+- `7d286ed` "Bing News -> Microsoft News" (#810): not ported. Winnow keeps separate
+  `Microsoft.BingNews` and `Microsoft.News` entries whose descriptions already note the rebrand;
+  renaming would give two entries the same label, and merging would drop one package id.
 
 AI/telemetry currency: re-read the authoritative WindowsAI Policy CSP
 (`learn.microsoft.com/.../policy-csp-windowsai`, ms.date 2026-09-10). Winnow already covers every
