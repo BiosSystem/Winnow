@@ -1,3 +1,11 @@
+## [v4.4.2] - 2026-10-17
+### Artifacts
+- **Release Package**: Winnow-v4.4.2.zip
+- **Standalone**: Winnow-Standalone.ps1
+- Both built and published by the release workflow on tag push. Checksums are on the release page.
+### Fixed
+- The Spanish home screen cut off the Custom Setup button label ("Configuración personalizada"). The home buttons now grow to fit localized labels; English renders exactly as before.
+
 ## [v4.4.1] - 2026-10-17
 ### Artifacts
 - **Release Package**: Winnow-v4.4.1.zip
