@@ -1,3 +1,12 @@
+## [v4.4.3] - 2026-10-17
+### Artifacts
+- **Release Package**: Winnow-v4.4.3.zip
+- **Standalone**: Winnow-Standalone.ps1
+- Both built and published by the release workflow on tag push. Checksums are on the release page.
+### Fixed
+- In Spanish, the app selection window pushed the "Only show installed apps" checkbox off its left edge. The label now wraps beside the buttons; English is unchanged.
+- New build check: every window and main window tab is laid out in each shipped language, and the build fails if any visible text is cut off.
+
 ## [v4.4.2] - 2026-10-17
 ### Artifacts
 - **Release Package**: Winnow-v4.4.2.zip
