@@ -59,10 +59,12 @@ Describe 'Winnow -DryRun safety' -Tag 'DryRun' {
         # -File binds "A,B" to a [string[]] parameter as one value. Two unknown
         # names are rejected before anything runs, and reporting them separately
         # proves the list was split rather than looked up as one FeatureId.
+        # The error record is wrapped to the console width, so a line break can
+        # fall between the names; the unsplit value has no whitespace there.
         $result = Invoke-WinnowProcess -Arguments @('-DryRun', '-Silent', '-CLI', '-Undo', 'NoSuchFeatureA,NoSuchFeatureB')
 
         $result.TimedOut | Should -BeFalse
         $result.ExitCode | Should -Not -Be 0
-        $result.Stderr | Should -Match 'Unknown feature\(s\) passed to -Undo: NoSuchFeatureA, NoSuchFeatureB'
+        $result.Stderr | Should -Match 'Unknown feature\(s\) passed to -Undo: NoSuchFeatureA,\s+NoSuchFeatureB'
     }
 }
