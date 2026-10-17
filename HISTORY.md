@@ -1,3 +1,12 @@
+## [v4.4.1] - 2026-10-17
+### Artifacts
+- **Release Package**: Winnow-v4.4.1.zip
+- **Standalone**: Winnow-Standalone.ps1
+- Both built and published by the release workflow on tag push. Checksums are on the release page.
+### Fixed
+- Feature steps outside the registry import (telemetry scheduled tasks, Windows Sandbox and WSL optional features, start menu replacement, Store search suggestions) now count as failures when they fail: listed in the summary, the run summary and the GUI, and the run exits 1. They used to print an error and still report success.
+- A scheduled task lookup that failed (access denied, module not loading) was treated as "task not found". Only a genuinely missing task counts as done now.
+
 ## [v4.4.0] - 2026-10-17
 ### Artifacts
 - **Release Package**: Winnow-v4.4.0.zip
