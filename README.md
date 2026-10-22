@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="Assets/Images/winnow-banner.svg" alt="Winnow — keep the grain, lose the bloat" width="100%" />
+  <img src="Assets/Images/winnow-banner.svg" alt="Winnow - keep the grain, lose the bloat" width="100%" />
 </p>
 
 <!--
