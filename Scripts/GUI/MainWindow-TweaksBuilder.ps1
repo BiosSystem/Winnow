@@ -247,6 +247,9 @@ function Build-DynamicTweaks {
         foreach ($feature in $featuresJson.Features) {
             if ($feature.Category -ne $categoryName) { $featureIndex++; continue }
 
+            # Features Windows itself no longer has stay in the catalog for undo and old backups only
+            if ($feature.RetiredReason) { $featureIndex++; continue }
+
             # Check version and feature compatibility using Features.json
             if (($feature.MinVersion -and $WinVersion -lt $feature.MinVersion) -or ($feature.MaxVersion -and $WinVersion -gt $feature.MaxVersion) -or ($feature.FeatureId -eq 'DisableModernStandbyNetworking' -and (-not $script:ModernStandbySupported))) {
                 $featureIndex++; continue

@@ -485,6 +485,15 @@ function Invoke-AllChanges {
         [void]$script:Params.Remove($id)
     }
     $applyIds = @($applyIds | Where-Object { $unsupportedIds -notcontains $_ })
+
+    # Retired features stay in the catalog so undo and old backups keep working,
+    # but there is nothing left in Windows for them to change.
+    $retiredIds = @($applyIds | Where-Object { $script:Features[$_].RetiredReason })
+    foreach ($id in $retiredIds) {
+        Write-Warning "Skipping ${id}: $($script:Features[$id].RetiredReason)"
+        [void]$script:Params.Remove($id)
+    }
+    $applyIds = @($applyIds | Where-Object { $retiredIds -notcontains $_ })
     $requiresRestorePoint = @($applyIds | Where-Object {
         $feature = $script:Features[$_]
         $feature -and $feature.RequiresRestorePoint -eq $true

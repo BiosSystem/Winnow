@@ -210,3 +210,36 @@ Describe 'Windows build support' {
         $winnow | Should -Match 'Scripts/Helpers/Test-FeatureSupportedOnBuild\.ps1'
     }
 }
+
+Describe 'Retired features' {
+
+    BeforeAll {
+        $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..\..') | Select-Object -ExpandProperty Path
+        $script:retired = @((Get-Content (Join-Path $repoRoot 'Config\Features.json') -Raw | ConvertFrom-Json).Features | Where-Object { $_.PSObject.Properties['RetiredReason'] })
+    }
+
+    It 'gives every retired feature a reason' {
+        foreach ($feature in $script:retired) {
+            [string]$feature.RetiredReason | Should -Not -BeNullOrEmpty -Because $feature.FeatureId
+        }
+    }
+
+    It 'marks Drag Tray as retired' {
+        $script:retired.FeatureId | Should -Contain 'DisableDragTray'
+    }
+
+    It 'leaves retired features out of the defaults and presets' {
+        $files = @(Join-Path $repoRoot 'Config\DefaultSettings.json') + @(Get-ChildItem (Join-Path $repoRoot 'Config\Presets') -Filter '*.json' | ForEach-Object FullName)
+        foreach ($file in $files) {
+            $text = Get-Content -LiteralPath $file -Raw
+            foreach ($feature in $script:retired) {
+                $text | Should -Not -Match ('"' + [regex]::Escape($feature.FeatureId) + '"') -Because "$file selects a retired feature"
+            }
+        }
+    }
+
+    It 'hides retired features from the Tweaks tab and skips them on apply' {
+        (Get-Content (Join-Path $repoRoot 'Scripts\GUI\MainWindow-TweaksBuilder.ps1') -Raw) | Should -Match 'if \(\$feature\.RetiredReason\)'
+        (Get-Content (Join-Path $repoRoot 'Scripts\Features\InvokeChanges.ps1') -Raw) | Should -Match '\.RetiredReason \}\)'
+    }
+}

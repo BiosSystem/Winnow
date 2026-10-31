@@ -6,10 +6,15 @@ Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Ve
 
 ## [Unreleased]
 
+### Added
+
+- 23 more apps can be removed: Windows App and Surface, plus OEM software from Acer, ASUS (GlideX, ScreenXpert), HP (OMEN Gaming Hub), Lenovo (Smart Appearance), LG, MSI (MSI Center, MSI Center Pro) and Samsung (Bixby, Flow, Gallery, Notes, Quick Share, SmartThings and others). The OEM preset includes the new OEM apps. Names and descriptions follow upstream's, which match the names Windows shows.
+
 ### Changed
 
 - The Spanish (es-ES) catalogue now translates all 115 features: label, tooltip, apply text and undo text. It covered 7 before, so a Spanish UI showed mostly English labels on the Tweaks tab and English progress text while applying. Windows' own Spanish names are used where they exist (Contenido destacado de Windows, Encontrar mi dispositivo, Vínculo móvil, Teclas especiales, Espacio aislado de Windows, Subsistema de Windows para Linux); product names without an established translation are kept (Click to Do, Drag Tray, Recall). The Tweaks tab dropdowns (group labels, tooltips and options) and the "No Change" option are translated as well: language catalogues gained an optional `UiGroups` section, keyed by group and by each option's English text, and the en-US copy is checked against Features.json so it cannot drift.
 - Saved settings, logs and registry backups moved to `%LOCALAPPDATA%\Winnow` (`Config\LastUsedSettings.json`, `Logs\`, `Backups\`), so they survive the launcher and the standalone build deleting their run folder. The first run copies `LastUsedSettings.json` and the registry backups from the script folder and the old `%TEMP%\Winnow` folder; the old copies are left in place. Without `LOCALAPPDATA` (some deployment task sequences) they stay next to the script as before.
+- "Disable Drag Tray" is retired. Microsoft removed Drop Tray (formerly Drag Tray) from Windows 11, starting with builds 26100.9168 and 26200.9168. The option is gone from the Tweaks tab and the defaults, and `-DisableDragTray` is skipped with a warning. It stays in the catalog, so undo and older registry backups that include it keep working.
 
 ### Fixed
 
@@ -17,6 +22,7 @@ Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Ve
 - Deferred winget uninstalls never ran. The RunOnce entry was `powershell.exe -EncodedCommand` with a Base64 command, 262 to 366 characters for every app in the catalog, and Windows does not run a RunOnce command longer than 260 characters. This affected the sign-in uninstall of user-scope winget apps, `-User` and `-Sysprep` winget removals, and the Edge uninstall scheduled for `-Sysprep`: each was reported as scheduled and then silently skipped. The entry now starts `winget.exe` directly with the app id as one quoted argument (at most 125 characters for the current catalog), and a command that would still be too long is refused instead of written. RunOnce values are not run through a shell, so characters such as `&` in an id stay literal.
 - Feature switches given on the command line were applied whatever the Windows build, while the GUI and config import skip features a build does not support (for example `-DisableRecall` on Windows 10, or `-HideChat` on 24H2). They are now skipped with a warning naming the build range, and left out of the run summary and saved settings.
 - A config file's deployment values were read with a `[bool]` cast, so a hand-written `"false"` switched `CreateRestorePoint` on and did not skip the Explorer restart. `true`/`false` as JSON or text (any case) and `1`/`0` are now read as booleans; anything else is ignored with a warning. The config window's summary and checkboxes read them the same way.
+- MyASUS and Armoury Crate were never removed: their catalog entries used `B9ECED6F.MyASUS` and `B9ECED6F.ASUSArmouryCrate`, which match no installed package. They now use the published package names `B9ECED6F.ASUSPCAssistant` and `B9ECED6F.ArmouryCrate`; the old ids stay as second ids so saved selections that name them still resolve.
 - PowerShell's common parameters (`-ErrorAction`, `-WarningAction`, `-OutVariable` and the rest) were taken for feature IDs: they were reported as unknown features, and passing one on its own skipped the GUI. They are now control parameters.
 - The app list read during removal and a `-VerifyProfile` file were read in the ANSI code page, so a file saved as UTF-8 without a BOM lost its non-ASCII text. Both are read as UTF-8, like the rest of Winnow's JSON.
 
