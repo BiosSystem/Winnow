@@ -18,14 +18,15 @@
 
     The focus is the logic that is easy to get wrong and expensive to debug on a
     real machine: the winget-vs-Appx dispatch, the Edge deferral, the
-    post-removal verification counters, and the Base64 encoding that keeps a
-    hostile app id from breaking out of the scheduled RunOnce command.
+    post-removal verification counters, and the RunOnce command: one quoted
+    winget argument, within the 260 characters Windows runs from RunOnce.
 #>
 
 BeforeAll {
     $script:repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..\..') | Select-Object -ExpandProperty Path
     . (Join-Path $script:repoRoot 'Scripts\AppRemoval\RemoveApps.ps1')
     . (Join-Path $script:repoRoot 'Scripts\AppRemoval\ForceRemoveEdge.ps1')
+    . (Join-Path $script:repoRoot 'Scripts\Helpers\Get-RegFileOperations.ps1')
 
     # External helpers RemoveApps.ps1 calls but does not define. Stubbed so Mock
     # has a command to replace and the real dependencies stay out of the suite.
@@ -283,27 +284,52 @@ Describe 'Set-RunOnceWingetTask' {
         $script:capturedOp.ValueName | Should -Be 'Uninstall_Vendor_App'
     }
 
-    It 'Base64-encodes the command so a hostile app id cannot break out of the shell' {
+    It 'starts winget.exe directly with the id as one quoted argument' {
         $script:Params = @{ User = 'Alice' }
-        Set-RunOnceWingetTask -appId 'Fake.App&calc'
+        Set-RunOnceWingetTask -appId 'Fake.App&calc' | Should -BeTrue
 
-        $prefix = 'powershell.exe -NoProfile -EncodedCommand '
-        $script:capturedOp.ValueData | Should -BeLike "$prefix*"
-
-        $encoded = $script:capturedOp.ValueData.Substring($prefix.Length)
-        $encoded | Should -Match '^[A-Za-z0-9+/=]+$' -Because 'the metacharacter must be inside the Base64 blob, not in the raw command line'
-
-        $decoded = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String($encoded))
-        $decoded | Should -BeLike "*--id 'Fake.App&calc'*"
+        $script:capturedOp.ValueData | Should -BeExactly 'winget.exe uninstall --accept-source-agreements --disable-interactivity --id "Fake.App&calc"'
     }
 
-    It 'doubles an embedded single quote so the id stays one quoted token' {
+    It 'escapes an embedded quote and a trailing backslash so the id stays one argument' {
         $script:Params = @{ User = 'Alice' }
-        Set-RunOnceWingetTask -appId "It's.App"
+        Set-RunOnceWingetTask -appId 'Odd"Id\' | Should -BeTrue
 
-        $encoded = $script:capturedOp.ValueData -replace '^.*-EncodedCommand '
-        $decoded = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String($encoded))
-        $decoded | Should -BeLike "*--id 'It''s.App'*"
+        $script:capturedOp.ValueData | Should -BeLike '* --id "Odd\"Id\\"'
+    }
+
+    It 'refuses a command longer than the 260 characters Windows runs from RunOnce' {
+        $script:Params = @{ User = 'Alice' }
+        Set-RunOnceWingetTask -appId ('A' * 200) | Should -BeFalse
+
+        $script:capturedOp | Should -BeNullOrEmpty -Because 'an over-long value is skipped by Windows, so it must not be written'
+    }
+
+    It 'fits every winget id in the app catalog within 260 characters' {
+        $script:Params = @{ User = 'Alice' }
+        $catalog = Get-Content -LiteralPath (Join-Path $repoRoot 'Config\Apps.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+        $ids = @($catalog.Apps | ForEach-Object { $_.AppId } | ForEach-Object { $_ }) + 'Microsoft.Edge'
+
+        foreach ($id in $ids) {
+            $script:capturedOp = $null
+            Set-RunOnceWingetTask -appId $id | Should -BeTrue -Because "$id must be schedulable"
+            $script:capturedOp.ValueData.Length | Should -BeLessOrEqual 260 -Because $id
+        }
+    }
+}
+
+Describe 'Static RunOnce values in Regfiles' {
+    It 'keeps every RunOnce command within the 260 characters Windows runs' {
+        $regFiles = Get-ChildItem -LiteralPath (Join-Path $repoRoot 'Regfiles') -Filter '*.reg' -Recurse
+        $checked = 0
+        foreach ($regFile in $regFiles) {
+            foreach ($operation in @(Get-RegFileOperations -regFilePath $regFile.FullName)) {
+                if ($operation.OperationType -ne 'SetValue' -or $operation.KeyPath -notmatch '\\RunOnce$') { continue }
+                $checked++
+                ([string]$operation.ValueData).Length | Should -BeLessOrEqual 260 -Because "$($regFile.Name) $($operation.ValueName)"
+            }
+        }
+        $checked | Should -BeGreaterThan 0 -Because 'the Sysprep reg files carry RunOnce values'
     }
 }
 
