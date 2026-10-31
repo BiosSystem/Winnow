@@ -175,6 +175,14 @@ if ($script:ElevationOutcome -ne 'Elevated') {
 }
 
 . (Join-Path $PSScriptRoot 'Scripts\Helpers\Initialize-Environment.ps1')
+. (Join-Path $PSScriptRoot 'Scripts\Helpers\Initialize-UserData.ps1')
+
+try {
+    Initialize-WinnowUserData -UserDataPath $script:UserDataPath -LegacyPaths $script:LegacyUserDataPaths
+}
+catch {
+    Write-Warning "Unable to prepare the user data folder $($script:UserDataPath): $($_.Exception.Message)"
+}
 
 # Log script output to 'Winnow.log' at the specified path
 if ($LogPath -and (Test-Path $LogPath)) {

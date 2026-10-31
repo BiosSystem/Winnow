@@ -11,7 +11,11 @@ $script:Version = if (Get-Variable -Name WINNOW_VERSION -Scope Global -ErrorActi
 $script:AppVersion = $script:Version
 $rootDir = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $configPath = Join-Path $rootDir 'Config'
-$logsPath = Join-Path $rootDir 'Logs'
+# Saved settings, logs and backups live outside the script folder, which the
+# launcher and the standalone build delete after every run. Deployment contexts
+# without LOCALAPPDATA (some task sequences) keep them next to the script.
+$script:UserDataPath = if ([string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) { $rootDir } else { Join-Path $env:LOCALAPPDATA 'Winnow' }
+$logsPath = Join-Path $script:UserDataPath 'Logs'
 $schemasPath = Join-Path $rootDir 'Schemas'
 $scriptsPath = Join-Path $rootDir 'Scripts'
 
@@ -20,10 +24,13 @@ $script:DefaultSettingsFilePath = Join-Path $configPath 'DefaultSettings.json'
 $script:FeaturesFilePath = Join-Path $configPath 'Features.json'
 $script:LanguagesPath = Join-Path $configPath 'Languages'
 $script:PresetsPath = Join-Path $configPath 'Presets'
-$script:SavedSettingsFilePath = Join-Path $configPath 'LastUsedSettings.json'
+$script:SavedSettingsFilePath = Join-Path (Join-Path $script:UserDataPath 'Config') 'LastUsedSettings.json'
 $script:DefaultLogPath = Join-Path $logsPath 'Winnow.log'
 $script:RegfilesPath = Join-Path $rootDir 'Regfiles'
-$script:RegistryBackupsPath = Join-Path $rootDir 'Backups'
+$script:RegistryBackupsPath = Join-Path $script:UserDataPath 'Backups'
+# Where earlier versions kept the same data: the script folder, and the fixed
+# %TEMP%\Winnow folder the old launcher reused between runs.
+$script:LegacyUserDataPaths = @($rootDir) + @(if ($env:TEMP) { Join-Path $env:TEMP 'Winnow' })
 $script:AssetsPath = Join-Path $rootDir 'Assets'
 $script:AppSelectionSchema = Join-Path $schemasPath 'AppSelectionWindow.xaml'
 $script:MainWindowSchema = Join-Path $schemasPath 'MainWindow.xaml'

@@ -11,7 +11,7 @@ Before any module executes, Winnow validates the runtime environment:
 3. **Mark-of-the-Web handling** - Unblocks only marked PowerShell source files when Group Policy overrides the execution policy. Executable and data files are not unblocked.
 4. **Domain-join warning** - Detects domain-joined systems and warns that Group Policy may override applied registry changes after the next policy refresh.
 5. **Path and asset validation** - Confirms that all required directories (`Assets`, `Config`, `Regfiles`, `Schemas`, `Scripts`) are present before loading any module.
-6. **Registry backup** - Captures a timestamped JSON snapshot of all scheduled modification targets to `Backups\Winnow-RegistryBackup-<timestamp>.json` unless `-SkipRegistryBackup` is explicitly specified. This snapshot is what automatic rollback restores from.
+6. **Registry backup** - Captures a timestamped JSON snapshot of all scheduled modification targets to `%LOCALAPPDATA%\Winnow\Backups\Winnow-RegistryBackup-<timestamp>.json` unless `-SkipRegistryBackup` is explicitly specified. This snapshot is what automatic rollback restores from.
 7. **System restore point** - Creates a system restore point before executing any of the four high-impact custom modules: gaming optimization, extended AI purge, security hardening, or telemetry firewall.
 
 ## Feature Definition: Config/Features.json
@@ -98,7 +98,7 @@ Backups are JSON, not `.reg` exports, and are restored through the engine rather
 
 ```powershell
 . .\Scripts\Features\RestoreRegistryBackup.ps1
-$backup = Load-RegistryBackupFromFile -FilePath '.\Backups\Winnow-RegistryBackup-<timestamp>.json'
+$backup = Load-RegistryBackupFromFile -FilePath "$env:LOCALAPPDATA\Winnow\Backups\Winnow-RegistryBackup-<timestamp>.json"
 Restore-RegistryBackupState -Backup $backup
 ```
 

@@ -121,7 +121,7 @@ Winnow implements a three-stage execution safety model before and after applying
 
 ### Stage 1 - Pre-Execution Snapshot
 
-Before any registry key is written, Winnow captures a point-in-time backup of all registry paths scheduled for modification. The backup is written to `Backups\Winnow-RegistryBackup-<timestamp>.json`. If `-SkipRegistryBackup` is not specified, this step is mandatory and blocks execution on failure. A System Restore point is created before any of the four high-impact custom modules run.
+Before any registry key is written, Winnow captures a point-in-time backup of all registry paths scheduled for modification. The backup is written to `%LOCALAPPDATA%\Winnow\Backups\Winnow-RegistryBackup-<timestamp>.json`, next to the saved settings (`Config\LastUsedSettings.json`) and logs (`Logs\`). If `-SkipRegistryBackup` is not specified, this step is mandatory and blocks execution on failure. A System Restore point is created before any of the four high-impact custom modules run.
 
 ### Stage 2 - Feature Apply Engine
 
