@@ -176,3 +176,37 @@ Describe 'Features.json' {
         $problems | Should -BeNullOrEmpty -Because "UiGroup wiring problems: $($problems -join '; ')"
     }
 }
+
+Describe 'Windows build support' {
+
+    BeforeAll {
+        $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..\..') | Select-Object -ExpandProperty Path
+        . (Join-Path $repoRoot 'Scripts\Helpers\Test-FeatureSupportedOnBuild.ps1')
+        $script:byId = @{}
+        foreach ($feature in (Get-Content (Join-Path $repoRoot 'Config\Features.json') -Raw | ConvertFrom-Json).Features) {
+            $script:byId[$feature.FeatureId] = $feature
+        }
+    }
+
+    It 'rejects a feature below its MinVersion and accepts it from that build on' {
+        Test-FeatureSupportedOnBuild -Feature $script:byId['DisableRecall'] -Build 19045 | Should -BeFalse
+        Test-FeatureSupportedOnBuild -Feature $script:byId['DisableRecall'] -Build '26100' | Should -BeTrue
+    }
+
+    It 'rejects a feature above its MaxVersion' {
+        Test-FeatureSupportedOnBuild -Feature $script:byId['HideChat'] -Build 26100 | Should -BeFalse
+        Test-FeatureSupportedOnBuild -Feature $script:byId['HideChat'] -Build 22000 | Should -BeTrue
+    }
+
+    It 'treats an unreadable build as supported' {
+        Test-FeatureSupportedOnBuild -Feature $script:byId['DisableRecall'] -Build $null | Should -BeTrue
+        Test-FeatureSupportedOnBuild -Feature $script:byId['DisableRecall'] -Build 'unknown' | Should -BeTrue
+    }
+
+    It 'checks command-line switches against the build before applying' {
+        $invokeChanges = Get-Content (Join-Path $repoRoot 'Scripts\Features\InvokeChanges.ps1') -Raw
+        $invokeChanges | Should -Match 'Test-FeatureSupportedOnBuild -Feature \$script:Features\[\$_\] -Build \$currentBuild'
+        $winnow = Get-Content (Join-Path $repoRoot 'Winnow.ps1') -Raw
+        $winnow | Should -Match 'Scripts/Helpers/Test-FeatureSupportedOnBuild\.ps1'
+    }
+}

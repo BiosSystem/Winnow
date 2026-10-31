@@ -470,6 +470,21 @@ function Invoke-AllChanges {
         if (-not $script:Features.ContainsKey($key)) { continue }
         $applyIds += $key
     }
+
+    # The GUI and the config import skip features this Windows build does not have;
+    # switches given on the command line reached the apply phase unchecked. Drop
+    # them from Params too, so the summary and the saved settings only list what ran.
+    $currentBuild = Get-Variable -Name WinVersion -ValueOnly -ErrorAction SilentlyContinue
+    $unsupportedIds = @($applyIds | Where-Object { -not (Test-FeatureSupportedOnBuild -Feature $script:Features[$_] -Build $currentBuild) })
+    foreach ($id in $unsupportedIds) {
+        $feature = $script:Features[$id]
+        $range = @()
+        if ($feature.MinVersion) { $range += "build $($feature.MinVersion) or newer" }
+        if ($feature.MaxVersion) { $range += "build $($feature.MaxVersion) or older" }
+        Write-Warning "Skipping ${id}: it needs Windows $($range -join ' and '), and this PC runs build $currentBuild."
+        [void]$script:Params.Remove($id)
+    }
+    $applyIds = @($applyIds | Where-Object { $unsupportedIds -notcontains $_ })
     $requiresRestorePoint = @($applyIds | Where-Object {
         $feature = $script:Features[$_]
         $feature -and $feature.RequiresRestorePoint -eq $true

@@ -590,7 +590,7 @@ function Get-WinnowVerificationInput {
 
     if (-not [string]::IsNullOrWhiteSpace($ProfilePath)) {
         $resolvedPath = (Resolve-Path -LiteralPath $ProfilePath -ErrorAction Stop).Path
-        $profile = Get-Content -LiteralPath $resolvedPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+        $profile = Get-Content -LiteralPath $resolvedPath -Raw -Encoding UTF8 -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
 
         foreach ($name in @($profile.Switches)) {
             if ($name -is [string] -and $name -notin $featureIds) {

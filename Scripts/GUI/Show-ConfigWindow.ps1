@@ -267,8 +267,8 @@ function Get-DeploymentCategoryDetailString {
     }
 
     $options = @()
-    if ($lookup.ContainsKey('CreateRestorePoint') -and [bool]$lookup['CreateRestorePoint']) { $options += 'Restore Point' }
-    if ($lookup.ContainsKey('RestartExplorer')    -and [bool]$lookup['RestartExplorer'])    { $options += 'Restart Explorer' }
+    if ((ConvertTo-ConfigBoolean $lookup['CreateRestorePoint']) -eq $true) { $options += 'Restore Point' }
+    if ((ConvertTo-ConfigBoolean $lookup['RestartExplorer']) -eq $true)    { $options += 'Restart Explorer' }
 
     $lines = @()
     if ($line1.Count -gt 0)   { $lines += $line1 -join ', ' }
@@ -358,13 +358,15 @@ function Apply-ImportedDeploymentSettings {
     }
 
     $restorePointCheckBox = $Owner.FindName('RestorePointCheckBox')
-    if ($lookup.ContainsKey('CreateRestorePoint') -and $restorePointCheckBox) {
-        $restorePointCheckBox.IsChecked = [bool]$lookup['CreateRestorePoint']
+    $restorePointValue = ConvertTo-ConfigBoolean $lookup['CreateRestorePoint']
+    if ($null -ne $restorePointValue -and $restorePointCheckBox) {
+        $restorePointCheckBox.IsChecked = $restorePointValue
     }
 
     $restartExplorerCheckBox = $Owner.FindName('RestartExplorerCheckBox')
-    if ($lookup.ContainsKey('RestartExplorer') -and $restartExplorerCheckBox) {
-        $restartExplorerCheckBox.IsChecked = [bool]$lookup['RestartExplorer']
+    $restartExplorerValue = ConvertTo-ConfigBoolean $lookup['RestartExplorer']
+    if ($null -ne $restartExplorerValue -and $restartExplorerCheckBox) {
+        $restartExplorerCheckBox.IsChecked = $restartExplorerValue
     }
 }
 

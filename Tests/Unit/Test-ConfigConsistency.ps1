@@ -101,3 +101,48 @@ Describe 'Test-ConfigConsistency' {
         }
     }
 }
+
+Describe 'Deployment flags read from a config file' {
+
+    BeforeAll {
+        $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..\..') | Select-Object -ExpandProperty Path
+        . (Join-Path $repoRoot 'Scripts\Helpers\ImportConfigToParams.ps1')
+
+        function LoadJsonFile { param($filePath, $expectedVersion) Get-Content -LiteralPath $filePath -Raw | ConvertFrom-Json }
+        function Test-ConfigConsistency { param($Config) $null }
+        function AddParameter { param($parameterName, $value = $true) $script:Params[$parameterName] = $value }
+
+        function Import-TestConfig {
+            param([string]$DeploymentJson)
+            $path = Join-Path $TestDrive ("config-" + [guid]::NewGuid().ToString('N') + '.json')
+            Set-Content -LiteralPath $path -Value "{ `"Version`": `"1.0`", `"Apps`": [`"Contoso.App`"], `"Deployment`": [$DeploymentJson] }"
+            $script:Params = @{}
+            ImportConfigToParams -ConfigPath $path -CurrentBuild 26100 | Out-Null
+            return $script:Params
+        }
+    }
+
+    It 'treats the text "false" as false instead of switching the option on' {
+        $params = Import-TestConfig '{ "Name": "CreateRestorePoint", "Value": "false" }, { "Name": "RestartExplorer", "Value": "false" }'
+
+        $params.ContainsKey('CreateRestorePoint') | Should -BeFalse
+        $params.ContainsKey('SkipExplorerRestart') | Should -BeTrue
+    }
+
+    It 'accepts JSON booleans, text in any case and the numbers 1 and 0' {
+        (Import-TestConfig '{ "Name": "CreateRestorePoint", "Value": true }').ContainsKey('CreateRestorePoint') | Should -BeTrue
+        (Import-TestConfig '{ "Name": "CreateRestorePoint", "Value": " TRUE " }').ContainsKey('CreateRestorePoint') | Should -BeTrue
+        (Import-TestConfig '{ "Name": "CreateRestorePoint", "Value": 1 }').ContainsKey('CreateRestorePoint') | Should -BeTrue
+        (Import-TestConfig '{ "Name": "RestartExplorer", "Value": 0 }').ContainsKey('SkipExplorerRestart') | Should -BeTrue
+        (Import-TestConfig '{ "Name": "RestartExplorer", "Value": true }').ContainsKey('SkipExplorerRestart') | Should -BeFalse
+    }
+
+    It 'ignores an unrecognised value with a warning naming the setting' {
+        Mock Write-Warning { }
+
+        $params = Import-TestConfig '{ "Name": "CreateRestorePoint", "Value": "yes" }'
+
+        $params.ContainsKey('CreateRestorePoint') | Should -BeFalse
+        Should -Invoke Write-Warning -ParameterFilter { $Message -like "*'CreateRestorePoint'*'yes'*" }
+    }
+}

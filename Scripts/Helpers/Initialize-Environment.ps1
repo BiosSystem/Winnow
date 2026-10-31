@@ -44,7 +44,10 @@ $script:RestoreBackupWindowSchema = Join-Path $schemasPath 'RestoreBackupWindow.
 $script:LoadAppsDetailsScriptPath = Join-Path (Join-Path $scriptsPath 'FileIO') 'LoadAppsDetailsFromJson.ps1'
 $script:TestAppInWingetListScriptPath = Join-Path (Join-Path $scriptsPath 'AppRemoval') 'Test-AppInWingetList.ps1'
 
-$script:ControlParams = 'WhatIf', 'Confirm', 'Verbose', 'Debug', 'LogPath', 'Silent', 'Sysprep', 'User', 'SkipExplorerRestart', 'SkipRegistryBackup', 'RunDefaults', 'RunDefaultsLite', 'RunSavedSettings', 'Config', 'CLI', 'AppRemovalTarget', 'Preset', 'DryRun', 'Verify', 'VerifyProfile', 'SkipUpdateCheck', 'NoAutoRollback', 'Undo'
+# Winnow.ps1 is an advanced script, so PowerShell's common parameters land in
+# $PSBoundParameters too. Listed here, -ErrorAction and the rest are not taken
+# for feature IDs, reported as unknown features, or counted as a selection.
+$script:ControlParams = 'WhatIf', 'Confirm', 'Verbose', 'Debug', 'ErrorAction', 'WarningAction', 'InformationAction', 'ProgressAction', 'ErrorVariable', 'WarningVariable', 'InformationVariable', 'OutVariable', 'OutBuffer', 'PipelineVariable', 'LogPath', 'Silent', 'Sysprep', 'User', 'SkipExplorerRestart', 'SkipRegistryBackup', 'RunDefaults', 'RunDefaultsLite', 'RunSavedSettings', 'Config', 'CLI', 'AppRemovalTarget', 'Preset', 'DryRun', 'Verify', 'VerifyProfile', 'SkipUpdateCheck', 'NoAutoRollback', 'Undo'
 
 # Script-level variables for GUI elements
 $script:GuiWindow = $null

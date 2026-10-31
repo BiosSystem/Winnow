@@ -17,6 +17,7 @@
 BeforeAll {
     $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..\..') | Select-Object -ExpandProperty Path
     . (Join-Path $repoRoot 'Scripts\GUI\Show-ConfigWindow.ps1')
+    . (Join-Path $repoRoot 'Scripts\Helpers\ImportConfigToParams.ps1')
     . (Join-Path $repoRoot 'Scripts\GUI\MainWindow-Deployment.ps1')
 }
 
@@ -66,6 +67,14 @@ Describe 'Get-DeploymentCategoryDetailString' {
             @{ Name = 'RestartExplorer'; Value = $false }
         )
         $result | Should -Be 'Options: Restore Point'
+    }
+
+    It 'reads "false" written as text as false, not as a set option' {
+        $result = Get-DeploymentCategoryDetailString -DeploymentSettings @(
+            @{ Name = 'CreateRestorePoint'; Value = 'false' },
+            @{ Name = 'RestartExplorer'; Value = 'TRUE' }
+        )
+        $result | Should -Be 'Options: Restart Explorer'
     }
 
     It 'falls back to a default line when nothing is set' {

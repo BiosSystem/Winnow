@@ -1,3 +1,49 @@
+<#
+    .SYNOPSIS
+        Reads a boolean deployment value from a configuration file.
+
+    .DESCRIPTION
+        Returns $true or $false for a JSON boolean, the text true or false (any
+        case, surrounding spaces ignored) and the numbers 1 and 0. Anything else
+        gives $null. A [bool] cast cannot be used: it turns any non-empty text,
+        including "false", into $true.
+#>
+function ConvertTo-ConfigBoolean {
+    param($Value)
+
+    if ($Value -is [bool]) { return $Value }
+    if ($Value -is [string]) {
+        $text = $Value.Trim()
+        if ($text -ieq 'true') { return $true }
+        if ($text -ieq 'false') { return $false }
+        return $null
+    }
+    if ($Value -is [int] -or $Value -is [long] -or $Value -is [decimal] -or $Value -is [double]) {
+        if ($Value -eq 1) { return $true }
+        if ($Value -eq 0) { return $false }
+    }
+    return $null
+}
+
+<#
+    .SYNOPSIS
+        Reads one boolean deployment setting, warning when it is not a boolean.
+#>
+function Get-ConfigDeploymentFlag {
+    param(
+        [hashtable]$Lookup,
+        [string]$Name
+    )
+
+    if (-not $Lookup.ContainsKey($Name)) { return $null }
+
+    $flagValue = ConvertTo-ConfigBoolean $Lookup[$Name]
+    if ($null -eq $flagValue) {
+        Write-Warning "Ignoring deployment setting '$Name' in the config file: expected true or false, found '$($Lookup[$Name])'."
+    }
+    return $flagValue
+}
+
 function ImportConfigToParams {
     param (
         [Parameter(Mandatory = $true)]
@@ -77,12 +123,12 @@ function ImportConfigToParams {
             }
         }
 
-        if ($deploymentLookup.ContainsKey('CreateRestorePoint') -and [bool]$deploymentLookup['CreateRestorePoint']) {
+        if ((Get-ConfigDeploymentFlag -Lookup $deploymentLookup -Name 'CreateRestorePoint') -eq $true) {
             AddParameter 'CreateRestorePoint'
             $importedItems++
         }
 
-        if ($deploymentLookup.ContainsKey('RestartExplorer') -and -not [bool]$deploymentLookup['RestartExplorer']) {
+        if ((Get-ConfigDeploymentFlag -Lookup $deploymentLookup -Name 'RestartExplorer') -eq $false) {
             AddParameter 'SkipExplorerRestart'
             $importedItems++
         }

@@ -89,6 +89,16 @@ Describe 'Winnow.ps1 parameter accounting' {
         $unaccounted | Should -BeNullOrEmpty -Because "orphaned parameters would be accepted and ignored: $($unaccounted -join ', ')"
     }
 
+    It 'treats every PowerShell common parameter as a control parameter' {
+        # Winnow.ps1 is an advanced script: -ErrorAction Stop and the like arrive in
+        # $PSBoundParameters and were taken for feature IDs.
+        $allCommon = @([System.Management.Automation.PSCmdlet]::CommonParameters) + @([System.Management.Automation.PSCmdlet]::OptionalCommonParameters)
+        $accepted = @((Get-Command -Name (Join-Path $script:repoRoot 'Winnow.ps1')).Parameters.Keys | Where-Object { $_ -in $allCommon })
+        $accepted.Count | Should -BeGreaterThan 5
+        $missing = @($accepted | Where-Object { $_ -notin $script:controlParams })
+        $missing | Should -BeNullOrEmpty -Because "not control parameters: $($missing -join ', ')"
+    }
+
     It 'lists only real parameters as directly handled' {
         $stale = @($script:directlyHandled | Where-Object { -not $script:entry.Types.ContainsKey($_) })
         $stale | Should -BeNullOrEmpty -Because "no longer Winnow.ps1 parameters: $($stale -join ', ')"
