@@ -63,4 +63,12 @@ Describe 'Apps.json' {
         }
         $broken | Should -BeNullOrEmpty -Because "Preset references unknown AppIds: $($broken -join '; ')"
     }
+
+    It 'removes the ASUS apps by their published package names' {
+        # B9ECED6F.MyASUS and B9ECED6F.ASUSArmouryCrate match no installed package;
+        # they stay second so older saved selections still resolve.
+        $firstIds = @($script:apps | ForEach-Object { @($_.AppId)[0] })
+        $firstIds | Should -Contain 'B9ECED6F.ASUSPCAssistant'
+        $firstIds | Should -Contain 'B9ECED6F.ArmouryCrate'
+    }
 }

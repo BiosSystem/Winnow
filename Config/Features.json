@@ -888,7 +888,8 @@
       "ApplyUndoText": "Enabling Drag Tray",
       "RegistryUndoKey": "Enable_Share_Drag_Tray.reg",
       "MinVersion": 26200,
-      "MaxVersion": null
+      "MaxVersion": null,
+      "RetiredReason": "Microsoft removed Drop Tray (formerly Drag Tray) from Windows 11, starting with builds 26100.9168 and 26200.9168, so there is nothing left to turn off."
     },
     {
       "FeatureId": "RevertContextMenu",
