@@ -52,8 +52,11 @@ exit 7
 
         $scriptFile = Join-Path $TestDrive ("bootstrap-" + [guid]::NewGuid().ToString('N') + '.ps1')
         Set-Content -LiteralPath $scriptFile -Value $ScriptText -Encoding UTF8
-        $process = Start-Process powershell.exe -ArgumentList @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', "`"$scriptFile`"") -Wait -PassThru -WindowStyle Hidden
-        return $process.ExitCode
+        $outFile = "$scriptFile.out"
+        $errFile = "$scriptFile.err"
+        $process = Start-Process powershell.exe -ArgumentList @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', "`"$scriptFile`"") -Wait -PassThru -NoNewWindow -RedirectStandardOutput $outFile -RedirectStandardError $errFile
+        $output = @(Get-Content -LiteralPath $outFile, $errFile -ErrorAction SilentlyContinue) -join ' | '
+        return [PSCustomObject]@{ ExitCode = $process.ExitCode; Output = $output }
     }
 }
 
@@ -115,9 +118,9 @@ Describe 'Elevated bootstrap script' {
         $null = New-Item -ItemType Directory -Path $runRoot
 
         $arguments = @('-Silent', '-User', (Format-LauncherArg 'Jane Doe'), '-Apps', (Format-LauncherArg 'A,B "C"'))
-        $exitCode = Invoke-Bootstrap (New-WinnowBootstrapScript -ArchivePath $archive -ArchiveSha256 $hash -WinnowArguments $arguments -RunRoot $runRoot)
+        $result = Invoke-Bootstrap (New-WinnowBootstrapScript -ArchivePath $archive -ArchiveSha256 $hash -WinnowArguments $arguments -RunRoot $runRoot)
 
-        $exitCode | Should -Be 7
+        $result.ExitCode | Should -Be 7 -Because $result.Output
         $lines = @(Get-Content -LiteralPath $record -Encoding UTF8)
         $lines[0] | Should -BeLike "$runRoot\Winnow-*\app"
         $lines[1..5] | Should -Be @('-Silent', '-User', 'Jane Doe', '-Apps', 'A,B "C"')
@@ -131,9 +134,10 @@ Describe 'Elevated bootstrap script' {
         $runRoot = Join-Path $TestDrive 'runs-bad'
         $null = New-Item -ItemType Directory -Path $runRoot
 
-        $exitCode = Invoke-Bootstrap (New-WinnowBootstrapScript -ArchivePath $archive -ArchiveSha256 ('0' * 64) -RunRoot $runRoot)
+        $result = Invoke-Bootstrap (New-WinnowBootstrapScript -ArchivePath $archive -ArchiveSha256 ('0' * 64) -RunRoot $runRoot)
 
-        $exitCode | Should -Not -Be 7
+        $result.ExitCode | Should -Not -Be 7
+        $result.Output | Should -BeLike '*changed after it was verified*'
         Test-Path -LiteralPath $record | Should -BeFalse
         @(Get-ChildItem -LiteralPath $runRoot).Count | Should -Be 0
     }
@@ -145,9 +149,9 @@ Describe 'Elevated bootstrap script' {
         $runRoot = Join-Path $TestDrive 'runs-dev'
         $null = New-Item -ItemType Directory -Path $runRoot
 
-        $exitCode = Invoke-Bootstrap (New-WinnowBootstrapScript -ArchivePath $archive -ArchiveSha256 $hash -RunRoot $runRoot)
+        $result = Invoke-Bootstrap (New-WinnowBootstrapScript -ArchivePath $archive -ArchiveSha256 $hash -RunRoot $runRoot)
 
-        $exitCode | Should -Be 7
+        $result.ExitCode | Should -Be 7 -Because $result.Output
         @(Get-Content -LiteralPath $record -Encoding UTF8)[0] | Should -BeLike '*\app\Winnow-master'
     }
 }
@@ -205,21 +209,27 @@ Describe 'User data folder' {
     }
 
     It 'puts user data under LOCALAPPDATA and keeps it next to the script without one' {
-        $initScript = Join-Path $script:repoRoot 'Scripts\Helpers\Initialize-Environment.ps1'
+        # Evaluated from the syntax tree: dot-sourcing Initialize-Environment draws
+        # the console banner, which fails without a console (CI).
+        $initAst = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $script:repoRoot 'Scripts\Helpers\Initialize-Environment.ps1'), [ref]$null, [ref]$null)
+        $assignment = $initAst.Find({ param($node) $node -is [System.Management.Automation.Language.AssignmentStatementAst] -and $node.Left.Extent.Text -eq '$script:UserDataPath' }, $true)
+        $assignment | Should -Not -BeNullOrEmpty
+        $resolve = [scriptblock]::Create('param($rootDir) ' + $assignment.Right.Extent.Text)
+
         $saved = $env:LOCALAPPDATA
         try {
-            $env:LOCALAPPDATA = Join-Path $TestDrive 'appdata'
-            $withAppData = & { . $initScript; $script:UserDataPath, $script:RegistryBackupsPath, $script:SavedSettingsFilePath }
-            $env:LOCALAPPDATA = ''
-            $withoutAppData = & { . $initScript; $script:UserDataPath }
+            $env:LOCALAPPDATA = 'C:\Users\Someone\AppData\Local'
+            & $resolve 'C:\Winnow' | Should -Be 'C:\Users\Someone\AppData\Local\Winnow'
+            $env:LOCALAPPDATA = $null
+            & $resolve 'C:\Winnow' | Should -Be 'C:\Winnow'
         }
         finally {
             $env:LOCALAPPDATA = $saved
         }
 
-        $withAppData[0] | Should -Be (Join-Path $TestDrive 'appdata\Winnow')
-        $withAppData[1] | Should -Be (Join-Path $TestDrive 'appdata\Winnow\Backups')
-        $withAppData[2] | Should -Be (Join-Path $TestDrive 'appdata\Winnow\Config\LastUsedSettings.json')
-        $withoutAppData | Should -Be $script:repoRoot
+        $initText = $initAst.Extent.Text
+        $initText | Should -Match ([regex]::Escape('$script:RegistryBackupsPath = Join-Path $script:UserDataPath ''Backups'''))
+        $initText | Should -Match ([regex]::Escape('$script:SavedSettingsFilePath = Join-Path (Join-Path $script:UserDataPath ''Config'') ''LastUsedSettings.json'''))
+        $initText | Should -Match ([regex]::Escape('$logsPath = Join-Path $script:UserDataPath ''Logs'''))
     }
 }
