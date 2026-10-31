@@ -144,6 +144,15 @@ jobs:
             exit 1
           }
 
+      - name: Run registry backup validation tests
+        shell: pwsh
+        run: |
+          $result = Invoke-Pester -Path "Tests/Unit/Test-RegistryBackupValidation.ps1" -Output Detailed -PassThru
+          if ($result.FailedCount -gt 0) {
+            Write-Error "$($result.FailedCount) test(s) failed in Test-RegistryBackupValidation.ps1"
+            exit 1
+          }
+
       - name: Run preset tests
         shell: pwsh
         run: |

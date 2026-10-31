@@ -538,6 +538,7 @@ function Invoke-AllChanges {
                 } | Where-Object { $_ })
                 # Keep the path: it is what automatic rollback restores from if
                 # the apply phase fails.
+                $script:RunRegistryBackupPayload = $null
                 $script:RunRegistryBackupPath = New-RegistrySettingsBackup -ActionableKeys $applyIds -ExtraFeatures $undoSyntheticFeatures
                 if ($applyIds -contains 'RemoveApps') {
                     Write-Host "  [INFO] Backing up Component-Based Servicing hive (HKLM\COMPONENTS)..."
@@ -638,7 +639,14 @@ function Invoke-AllChanges {
             if (-not [string]::IsNullOrWhiteSpace($script:RunRegistryBackupPath)) {
                 Write-Host "> $($script:RunRollbackReason). Rolling back registry changes..." -ForegroundColor Yellow
                 try {
-                    $rollbackBackup = Load-RegistryBackupFromFile -FilePath $script:RunRegistryBackupPath
+                    $rollbackBackup = if ($script:RunRegistryBackupPayload) {
+                        # Same JSON round trip as the file, from this run's memory.
+                        $rollbackSource = $script:RunRegistryBackupPayload | ConvertTo-Json -Depth 25 | ConvertFrom-Json
+                        Normalize-RegistryBackup -Backup $rollbackSource -TrustExecutableValues
+                    }
+                    else {
+                        Load-RegistryBackupFromFile -FilePath $script:RunRegistryBackupPath
+                    }
                     $rollbackResult = Restore-RegistryBackupState -Backup $rollbackBackup
                     if ($rollbackResult -and $rollbackResult.Result) {
                         $registryOutcome = $true

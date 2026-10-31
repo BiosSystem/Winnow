@@ -15,6 +15,14 @@ Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Ve
 - In Spanish, the description under the app removal scope dropdown kept saying apps would be removed for all users and from the Windows image, whichever scope was selected. The description was chosen by matching the dropdown text against English, and that text is translated. It now matches the item's name, and the current-user and target-user descriptions are translated too.
 - Deferred winget uninstalls never ran. The RunOnce entry was `powershell.exe -EncodedCommand` with a Base64 command, 262 to 366 characters for every app in the catalog, and Windows does not run a RunOnce command longer than 260 characters. This affected the sign-in uninstall of user-scope winget apps, `-User` and `-Sysprep` winget removals, and the Edge uninstall scheduled for `-Sysprep`: each was reported as scheduled and then silently skipped. The entry now starts `winget.exe` directly with the app id as one quoted argument (at most 125 characters for the current catalog), and a command that would still be too long is refused instead of written. RunOnce values are not run through a shell, so characters such as `&` in an id stay literal.
 
+### Security
+
+- Restoring a registry backup is stricter about what the file may do. Backups are saved in a folder the user can write without elevation and are restored elevated, so a changed or damaged file could do more than undo Winnow's changes:
+  - A key snapshot without `Exists` was read as "did not exist" and the restore deleted the whole key. `Exists` must now be `true` or `false`.
+  - "Did not exist" on a key that features only write values in (for example `Explorer\Advanced`) deleted the whole key tree. It now removes just those values, and the key only when nothing else is left in it. Keys a feature deletes outright keep the whole-tree restore.
+  - A snapshot could carry sub-keys under a key that features capture without sub-keys, and restoring it rebuilt the whole tree. That is now rejected.
+  - Values Windows runs as a program (shell `open\command` verbs, `RunOnce`, COM server and context menu handler registrations) had their data restored as is. Their data must now match what Winnow's own .reg files write; anything else is listed in a warning and restored only if the user confirms it. Automatic rollback after a failed apply restores from the copy held in memory instead of re-reading the file.
+
 ## [4.4.4] - 2026-10-17
 
 ### Fixed
