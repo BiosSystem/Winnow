@@ -13,6 +13,7 @@ Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Ve
 ### Fixed
 
 - In Spanish, the description under the app removal scope dropdown kept saying apps would be removed for all users and from the Windows image, whichever scope was selected. The description was chosen by matching the dropdown text against English, and that text is translated. It now matches the item's name, and the current-user and target-user descriptions are translated too.
+- Deferred winget uninstalls never ran. The RunOnce entry was `powershell.exe -EncodedCommand` with a Base64 command, 262 to 366 characters for every app in the catalog, and Windows does not run a RunOnce command longer than 260 characters. This affected the sign-in uninstall of user-scope winget apps, `-User` and `-Sysprep` winget removals, and the Edge uninstall scheduled for `-Sysprep`: each was reported as scheduled and then silently skipped. The entry now starts `winget.exe` directly with the app id as one quoted argument (at most 125 characters for the current catalog), and a command that would still be too long is refused instead of written. RunOnce values are not run through a shell, so characters such as `&` in an id stay literal.
 
 ## [4.4.4] - 2026-10-17
 
