@@ -389,6 +389,7 @@ if (-not $script:WingetInstalled -and -not $Silent) {
 . "$PSScriptRoot/Scripts/Helpers/ApplyRegistryRegFile.ps1"
 . "$PSScriptRoot/Scripts/Helpers/ConfirmUnsafeAppRemoval.ps1"
 . "$PSScriptRoot/Scripts/Helpers/ConvertTo-ParameterList.ps1"
+. "$PSScriptRoot/Scripts/Helpers/Test-FeatureSupportedOnBuild.ps1"
 
 # Threading functions
 . "$PSScriptRoot/Scripts/Threading/DoEvents.ps1"
