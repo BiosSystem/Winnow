@@ -228,8 +228,20 @@ function Restore-RegistryBackupState {
         param($normalizedBackup)
 
         Write-Host "Applying registry restore from $(@($normalizedBackup.RegistryKeys).Count) root snapshot(s)."
+        # One key that cannot be restored must not leave every key after it
+        # unrestored; report all failures together once the rest are done.
+        $failedKeys = New-Object System.Collections.Generic.List[string]
         foreach ($rootSnapshot in @($normalizedBackup.RegistryKeys)) {
-            Restore-RegistryKeySnapshot -Snapshot $rootSnapshot
+            try {
+                Restore-RegistryKeySnapshot -Snapshot $rootSnapshot
+            }
+            catch {
+                $failedKeys.Add("$($rootSnapshot.Path) ($($_.Exception.Message))")
+                Write-Warning "Unable to restore $($rootSnapshot.Path): $($_.Exception.Message)"
+            }
+        }
+        if ($failedKeys.Count -gt 0) {
+            throw "Registry restore failed for $($failedKeys.Count) key(s): $($failedKeys -join '; ')"
         }
     }
 

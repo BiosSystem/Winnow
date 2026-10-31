@@ -257,3 +257,33 @@ Describe 'Restoring a key that did not exist' {
         [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($script:scratchSubKey) | Should -BeNullOrEmpty
     }
 }
+
+Describe 'Restoring several keys when one fails' {
+    BeforeEach {
+        $script:Params = @{}
+        $script:restoredPaths = New-Object System.Collections.Generic.List[string]
+        Mock Write-Host { }
+        Mock Write-Warning { }
+        Mock Restore-RegistryKeySnapshot {
+            if ($Snapshot.Path -like '*First*') { throw 'Access is denied.' }
+            $script:restoredPaths.Add($Snapshot.Path)
+        }
+    }
+
+    It 'restores the keys after the failing one and reports the failure' {
+        $backup = [PSCustomObject]@{
+            Target = $script:currentUserTarget
+            UntrustedExecutableValues = @()
+            ExecutableValuesConfirmed = $false
+            RegistryKeys = @(
+                [PSCustomObject]@{ Path = 'HKEY_CURRENT_USER\Software\First' }
+                [PSCustomObject]@{ Path = 'HKEY_CURRENT_USER\Software\Second' }
+                [PSCustomObject]@{ Path = 'HKEY_CURRENT_USER\Software\Third' }
+            )
+        }
+
+        { Restore-RegistryBackupState -Backup $backup } | Should -Throw '*failed for 1 key(s)*Software\First*Access is denied*'
+        @($script:restoredPaths) | Should -Be @('HKEY_CURRENT_USER\Software\Second', 'HKEY_CURRENT_USER\Software\Third')
+        Should -Invoke Write-Warning -Times 1
+    }
+}
