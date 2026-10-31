@@ -197,6 +197,9 @@ function New-WinnowBootstrapScript {
     return @"
 `$ErrorActionPreference = 'Stop'
 `$exitCode = 1
+# A PowerShell 7 module path inherited from the caller stops Windows PowerShell
+# from loading its own modules (Set-Acl, Expand-Archive, Get-FileHash).
+`$env:PSModulePath = (`$env:PSModulePath -split ';' | Where-Object { `$_ -like '*WindowsPowerShell*' }) -join ';'
 `$runPath = Join-Path $runRootLiteral ('Winnow-' + [guid]::NewGuid().ToString('N'))
 try {
     `$null = New-Item -ItemType Directory -Path `$runPath
@@ -229,7 +232,7 @@ try {
 catch {
     Write-Host "Error: `$(`$_.Exception.Message)" -ForegroundColor Red
     Write-Host 'Press enter to exit...'
-    Read-Host | Out-Null
+    try { Read-Host | Out-Null } catch { }
 }
 finally {
     Remove-Item -LiteralPath `$runPath -Recurse -Force -ErrorAction SilentlyContinue
