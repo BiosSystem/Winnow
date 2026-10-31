@@ -9,6 +9,7 @@ Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Ve
 ### Changed
 
 - The Spanish (es-ES) catalogue now translates all 115 features: label, tooltip, apply text and undo text. It covered 7 before, so a Spanish UI showed mostly English labels on the Tweaks tab and English progress text while applying. Windows' own Spanish names are used where they exist (Contenido destacado de Windows, Encontrar mi dispositivo, Vínculo móvil, Teclas especiales, Espacio aislado de Windows, Subsistema de Windows para Linux); product names without an established translation are kept (Click to Do, Drag Tray, Recall). The Tweaks tab dropdowns (group labels, tooltips and options) and the "No Change" option are translated as well: language catalogues gained an optional `UiGroups` section, keyed by group and by each option's English text, and the en-US copy is checked against Features.json so it cannot drift.
+- Saved settings, logs and registry backups moved to `%LOCALAPPDATA%\Winnow` (`Config\LastUsedSettings.json`, `Logs\`, `Backups\`), so they survive the launcher and the standalone build deleting their run folder. The first run copies `LastUsedSettings.json` and the registry backups from the script folder and the old `%TEMP%\Winnow` folder; the old copies are left in place. Without `LOCALAPPDATA` (some deployment task sequences) they stay next to the script as before.
 
 ### Fixed
 
@@ -22,6 +23,8 @@ Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Ve
   - "Did not exist" on a key that features only write values in (for example `Explorer\Advanced`) deleted the whole key tree. It now removes just those values, and the key only when nothing else is left in it. Keys a feature deletes outright keep the whole-tree restore.
   - A snapshot could carry sub-keys under a key that features capture without sub-keys, and restoring it rebuilt the whole tree. That is now rejected.
   - Values Windows runs as a program (shell `open\command` verbs, `RunOnce`, COM server and context menu handler registrations) had their data restored as is. Their data must now match what Winnow's own .reg files write; anything else is listed in a warning and restored only if the user confirms it. Automatic rollback after a failed apply restores from the copy held in memory instead of re-reading the file.
+- The download launcher (`Scripts/Get.ps1`) verified nothing and ran Winnow elevated from `%TEMP%\Winnow`, a fixed folder the standard user controls and that the launcher reused between runs. It now downloads the release's `Winnow-v*.zip` asset and refuses to run it unless it matches the SHA-256 GitHub publishes for that asset (a release without the asset or its digest is refused; `-Dev` downloads the branch archive and says it cannot be verified). The elevated step copies the archive into a new folder under `%SystemRoot%\Temp` that only Administrators and SYSTEM can change, checks the copy against the hash taken right after the download, and unpacks and runs Winnow from there. The folder is removed after the run.
+- The standalone build extracted into a locked folder inside the user's own `%TEMP%`, where a standard user can still rename the folder away and put another in its place. It now extracts under `%SystemRoot%\Temp`.
 
 ## [4.4.4] - 2026-10-17
 

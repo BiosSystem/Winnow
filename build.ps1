@@ -104,8 +104,10 @@ if (-not (Test-StandaloneAdmin)) {
 }
 
 # Elevated from here. A full GUID gives a non-guessable directory name, and the
-# locked ACL closes the tamper window for the rest of the run.
-`$ExtractPath = Join-Path `$env:TEMP "Winnow_Run_`$([Guid]::NewGuid().ToString('N'))"
+# locked ACL closes the tamper window for the rest of the run. The folder goes in
+# %SystemRoot%\Temp: in the user's own %TEMP% a standard user can still rename a
+# locked folder away and put another in its place, because they control the parent.
+`$ExtractPath = Join-Path (Join-Path `$env:SystemRoot 'Temp') "Winnow_Run_`$([Guid]::NewGuid().ToString('N'))"
 
 try {
     New-Item -ItemType Directory -Path `$ExtractPath -Force | Out-Null

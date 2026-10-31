@@ -138,7 +138,7 @@ param (
     [switch]$RemoveDefenderGamingExclusions
 )
 
-# Show error if current powershell environment does not have LanguageMode set to FullLanguage 
+# Show error if current powershell environment does not have LanguageMode set to FullLanguage
 if ($ExecutionContext.SessionState.LanguageMode -ne "FullLanguage") {
    Write-Host "Error: Winnow is unable to run on your system. PowerShell execution is restricted by security policies" -ForegroundColor Red
    Write-Output ""
@@ -147,92 +147,138 @@ if ($ExecutionContext.SessionState.LanguageMode -ne "FullLanguage") {
    Exit
 }
 
-Clear-Host
-Write-Output "-------------------------------------------------------------------------------------------"
-Write-Output " Winnow Script"
-Write-Output "-------------------------------------------------------------------------------------------"
-
-$tempRootPath = $env:TEMP
-$tempWorkPath = Join-Path $tempRootPath 'Winnow'
-$tempArchivePath = Join-Path $tempRootPath 'Winnow.zip'
-
-Write-Output "> Downloading Winnow..."
-
-# Download Winnow from GitHub as a zip archive.
-try {
-    if ($Dev) {
-        $sourceUri = "https://github.com/BiosSystem/Winnow/archive/refs/heads/master.zip"
-    } else {
-        $sourceUri = (Invoke-RestMethod https://api.github.com/repos/BiosSystem/Winnow/releases/latest).zipball_url
-    }
-    Invoke-RestMethod $sourceUri -OutFile $tempArchivePath
-}
-catch {
-    Write-Host "Error: Unable to fetch required files from GitHub. Please check your internet connection and try again." -ForegroundColor Red
-    Write-Output ""
-    Write-Output "Press enter to exit..."
-    Read-Host | Out-Null
-    Exit
-}
-
-# Remove old script folder if it exists, but keep configs, logs and backups
-if (Test-Path $tempWorkPath) {
-    Write-Output ""
-    Write-Output "> Cleaning up old script files..."
-
-    Get-ChildItem -Path $tempWorkPath -Exclude Config,Logs,Backups | Remove-Item -Recurse -Force
-}
-
-$configDir = Join-Path $tempWorkPath 'Config'
-$backupDir = Join-Path $tempWorkPath 'ConfigOld'
-
-# Temporarily move existing config files if they exist to prevent them from being overwritten by the new script files, will be moved back after the new script is unpacked
-if (Test-Path "$configDir") {
-    Write-Output ""
-    Write-Output "> Backing up existing config files..."
-
-    New-Item -ItemType Directory -Path "$backupDir" -Force | Out-Null
-
-    $filesToKeep = @(
-        'LastUsedSettings.json'
-    )
-
-    Get-ChildItem -Path "$configDir" -Recurse | Where-Object { $_.Name -in $filesToKeep } | Move-Item -Destination "$backupDir"
-
-    Remove-Item "$configDir" -Recurse -Force
-}
-
-Write-Output ""
-Write-Output "> Unpacking..."
-
-# Unzip archive to Winnow folder
-Expand-Archive $tempArchivePath $tempWorkPath
-
-# Remove archive
-Remove-Item $tempArchivePath
-
-# Move files
-Get-ChildItem -Path (Join-Path $tempWorkPath '*Winnow-*') -Recurse | Move-Item -Destination $tempWorkPath
-
-# Add existing config files back to Config folder
-if (Test-Path "$backupDir") {
-    if (-not (Test-Path "$configDir")) {
-        New-Item -ItemType Directory -Path "$configDir" -Force | Out-Null
-    }
-
-    Write-Output ""
-    Write-Output "> Restoring existing config files..."
-
-    Get-ChildItem -Path "$backupDir" -Recurse | Move-Item -Destination "$configDir"
-    Remove-Item "$backupDir" -Recurse -Force
-}
-
+# Quote a value so it survives CommandLineToArgvW parsing in the child process.
 function Format-LauncherArg {
     param([AllowEmptyString()][string]$Value)
 
     $escaped = $Value -replace '(\\*)"', '$1$1\"'
     $escaped = $escaped -replace '(\\+)$', '$1$1'
     return '"{0}"' -f $escaped
+}
+
+# Picks the release archive and the SHA-256 GitHub published for it. A release
+# without the archive asset or its digest is refused rather than run unverified.
+function Get-WinnowReleaseArchive {
+    param([Parameter(Mandatory)]$Release)
+
+    $asset = @($Release.assets | Where-Object { $_.name -match '^Winnow-v[0-9][0-9.]*\.zip$' }) | Select-Object -First 1
+    if (-not $asset) {
+        throw "Release $($Release.tag_name) has no Winnow-v*.zip asset."
+    }
+    if ([string]$asset.digest -notmatch '^sha256:([0-9a-fA-F]{64})$') {
+        throw "Release asset $($asset.name) has no SHA-256 digest to verify against."
+    }
+
+    return [PSCustomObject]@{
+        Uri = [string]$asset.browser_download_url
+        Name = [string]$asset.name
+        Sha256 = $Matches[1].ToUpperInvariant()
+    }
+}
+
+# Builds the script the elevated process runs. It copies the archive into a new
+# folder under %SystemRoot%\Temp that only Administrators and SYSTEM can change
+# (a standard user cannot rename or replace it, unlike a locked folder in their
+# own %TEMP%), checks the copy against the hash taken right after the download,
+# unpacks it there and runs Winnow.ps1 from it. Nothing the elevated run loads
+# comes from a folder the standard user controls.
+function New-WinnowBootstrapScript {
+    param(
+        [Parameter(Mandatory)][string]$ArchivePath,
+        [Parameter(Mandatory)][string]$ArchiveSha256,
+        [AllowEmptyCollection()][string[]]$WinnowArguments = @(),
+        [string]$RunRoot = ''
+    )
+
+    $quote = { param([string]$Text) "'" + $Text.Replace("'", "''") + "'" }
+    $argumentLiteral = '@(' + ((@($WinnowArguments) | ForEach-Object { & $quote $_ }) -join ', ') + ')'
+    $runRootLiteral = if ($RunRoot) { & $quote $RunRoot } else { '(Join-Path $env:SystemRoot ''Temp'')' }
+
+    return @"
+`$ErrorActionPreference = 'Stop'
+`$exitCode = 1
+`$runPath = Join-Path $runRootLiteral ('Winnow-' + [guid]::NewGuid().ToString('N'))
+try {
+    `$null = New-Item -ItemType Directory -Path `$runPath
+    `$acl = New-Object System.Security.AccessControl.DirectorySecurity
+    `$acl.SetAccessRuleProtection(`$true, `$false)
+    foreach (`$sid in 'S-1-5-18', 'S-1-5-32-544') {
+        `$acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule((New-Object System.Security.Principal.SecurityIdentifier `$sid), 'FullControl', 'ContainerInherit, ObjectInherit', 'None', 'Allow')))
+    }
+    Set-Acl -LiteralPath `$runPath -AclObject `$acl
+
+    `$archiveCopy = Join-Path `$runPath 'Winnow.zip'
+    Copy-Item -LiteralPath $(& $quote $ArchivePath) -Destination `$archiveCopy
+    if ((Get-FileHash -LiteralPath `$archiveCopy -Algorithm SHA256).Hash -ne $(& $quote $ArchiveSha256)) {
+        throw 'The downloaded archive changed after it was verified. Winnow was not started.'
+    }
+
+    `$appPath = Join-Path `$runPath 'app'
+    Expand-Archive -LiteralPath `$archiveCopy -DestinationPath `$appPath
+    if (-not (Test-Path -LiteralPath (Join-Path `$appPath 'Winnow.ps1'))) {
+        # Branch archives (-Dev) unpack into one Winnow-<branch> folder.
+        `$nested = @(Get-ChildItem -LiteralPath `$appPath -Directory -Filter 'Winnow-*')
+        if (`$nested.Count -eq 1) { `$appPath = `$nested[0].FullName }
+    }
+
+    `$scriptPath = Join-Path `$appPath 'Winnow.ps1'
+    `$launchArguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ('"' + `$scriptPath + '"')) + $argumentLiteral
+    `$winnowProcess = Start-Process powershell.exe -ArgumentList `$launchArguments -NoNewWindow -Wait -PassThru
+    `$exitCode = `$winnowProcess.ExitCode
+}
+catch {
+    Write-Host "Error: `$(`$_.Exception.Message)" -ForegroundColor Red
+    Write-Host 'Press enter to exit...'
+    Read-Host | Out-Null
+}
+finally {
+    Remove-Item -LiteralPath `$runPath -Recurse -Force -ErrorAction SilentlyContinue
+}
+exit `$exitCode
+"@
+}
+
+Clear-Host
+Write-Output "-------------------------------------------------------------------------------------------"
+Write-Output " Winnow Script"
+Write-Output "-------------------------------------------------------------------------------------------"
+
+# A new name for every run, so the download is never at a path prepared in advance.
+$tempArchivePath = Join-Path $env:TEMP ("Winnow-{0}.zip" -f [guid]::NewGuid().ToString('N'))
+$expectedArchiveHash = $null
+
+Write-Output "> Downloading Winnow..."
+
+try {
+    if ($Dev) {
+        Write-Warning 'Downloading the master branch. Branch archives have no published checksum to verify against.'
+        $sourceUri = "https://github.com/BiosSystem/Winnow/archive/refs/heads/master.zip"
+    } else {
+        $release = Invoke-RestMethod https://api.github.com/repos/BiosSystem/Winnow/releases/latest
+        $releaseArchive = Get-WinnowReleaseArchive -Release $release
+        $sourceUri = $releaseArchive.Uri
+        $expectedArchiveHash = $releaseArchive.Sha256
+    }
+    Invoke-RestMethod $sourceUri -OutFile $tempArchivePath
+}
+catch {
+    Remove-Item -LiteralPath $tempArchivePath -Force -ErrorAction SilentlyContinue
+    Write-Host "Error: Unable to fetch Winnow from GitHub. $($_.Exception.Message)" -ForegroundColor Red
+    Write-Output ""
+    Write-Output "Press enter to exit..."
+    Read-Host | Out-Null
+    Exit 1
+}
+
+# Hash the download straight away; the elevated step checks its own copy against this.
+$archiveHash = (Get-FileHash -LiteralPath $tempArchivePath -Algorithm SHA256).Hash
+if ($expectedArchiveHash -and $archiveHash -ne $expectedArchiveHash) {
+    Remove-Item -LiteralPath $tempArchivePath -Force -ErrorAction SilentlyContinue
+    Write-Host "Error: The downloaded archive does not match the SHA-256 GitHub published for this release. Winnow was not started." -ForegroundColor Red
+    Write-Output ""
+    Write-Output "Press enter to exit..."
+    Read-Host | Out-Null
+    Exit 1
 }
 
 # Make a safely quoted argument list for the script. Exclude -Dev because it only affects this launcher.
@@ -269,23 +315,25 @@ if ($PSVersionTable.PSVersion.Major -ge 7) {
     $env:PSModulePath = $NewPSModulePath -join ';'
 }
 
-# Run Winnow script with the provided arguments
-$debloatScriptPath = Join-Path $tempWorkPath 'Winnow.ps1'
-$launchArguments = @(
-    '-NoProfile'
-    '-ExecutionPolicy'
-    'Bypass'
-    '-File'
-    (Format-LauncherArg $debloatScriptPath)
-) + $arguments
+# The elevated process gets the whole bootstrap on its command line, so no file it
+# runs from sits where a standard user can change it.
+$bootstrapScript = New-WinnowBootstrapScript -ArchivePath $tempArchivePath -ArchiveSha256 $archiveHash -WinnowArguments $arguments
+$encodedBootstrap = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($bootstrapScript))
+$launchArguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', $encodedBootstrap)
 
 $exitCode = 1
-try {
-    $debloatProcess = Start-Process powershell.exe -WindowStyle $windowStyle -PassThru -ArgumentList $launchArguments -Verb RunAs -ErrorAction Stop
-}
-catch {
-    Write-Host "Error: Unable to launch Winnow with administrator privileges. $($_.Exception.Message)" -ForegroundColor Red
+if ($encodedBootstrap.Length -gt 30000) {
+    Write-Host "Error: The argument list is too long to pass to the elevated process." -ForegroundColor Red
     $debloatProcess = $null
+}
+else {
+    try {
+        $debloatProcess = Start-Process powershell.exe -WindowStyle $windowStyle -PassThru -ArgumentList $launchArguments -Verb RunAs -ErrorAction Stop
+    }
+    catch {
+        Write-Host "Error: Unable to launch Winnow with administrator privileges. $($_.Exception.Message)" -ForegroundColor Red
+        $debloatProcess = $null
+    }
 }
 
 # Wait for the process to finish before continuing
@@ -294,15 +342,9 @@ if ($null -ne $debloatProcess) {
     $exitCode = $debloatProcess.ExitCode
 }
 
-# Remove all remaining script files, except for configs, logs and backups
-if (Test-Path $tempWorkPath) {
-    Write-Output ""
-    Write-Output "> Cleaning up..."
-
-    # Cleanup, remove Winnow directory
-    Get-ChildItem -Path $tempWorkPath -Exclude Config,Logs,Backups | Remove-Item -Recurse -Force
-}
+Write-Output ""
+Write-Output "> Cleaning up..."
+Remove-Item -LiteralPath $tempArchivePath -Force -ErrorAction SilentlyContinue
 
 Write-Output ""
 Exit $exitCode
-

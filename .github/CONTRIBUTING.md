@@ -81,15 +81,15 @@ Winnow/
 │   ├── Apps.json                # List of supported apps for removal
 │   ├── DefaultSettings.json     # Default configuration preset
 │   ├── Features.json            # All features with metadata
-│   └── LastUsedSettings.json    # Last used configuration (generated during use)
+│   └── Languages/               # Translation catalogues
 ├── Regfiles/                    # Registry files for all features
 │   ├── Undo/                    # Registry files for reverting features
 │   └── Sysprep/                 # Registry files for Sysprep mode
 ├── Schemas/                     # XAML Schemas for GUI elements
-├── Assets/                      # Static assets (icons, start menu templates)
-├── Backups/                     # Registry backups (generated during use)
-└── Logs/                        # Script logs (generated during use)
+└── Assets/                      # Static assets (icons, start menu templates)
 ```
+
+Saved settings (`Config\LastUsedSettings.json`), registry backups (`Backups\`) and logs (`Logs\`) are written to `%LOCALAPPDATA%\Winnow`, not the repository, because the launcher and the standalone build delete their script folder after every run.
 
 ### Best Practices
 
