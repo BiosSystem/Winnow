@@ -54,13 +54,19 @@ function Load-RegistryBackupFromFile {
     .OUTPUTS
         PSCustomObject
         A normalized backup with Version, BackupType, CreatedAt, CreatedBy,
-        ComputerName, Target, SelectedFeatures, SelectedUndoFeatures, and
-        RegistryKeys properties.
+        ComputerName, Target, SelectedFeatures, SelectedUndoFeatures,
+        RegistryKeys, UntrustedExecutableValues and ExecutableValuesConfirmed
+        properties.
+
+    .PARAMETER TrustExecutableValues
+        Accept program-start values without confirmation. Only for a backup this
+        run created and kept in memory (automatic rollback), never for a file.
 #>
 function Normalize-RegistryBackup {
     param(
         [Parameter(Mandatory)]
-        $Backup
+        $Backup,
+        [switch]$TrustExecutableValues
     )
 
     $errors = New-Object System.Collections.Generic.List[string]
@@ -132,15 +138,22 @@ function Normalize-RegistryBackup {
         $errors.Add([string]$selectedUndoFeatureParseError)
     }
 
+    $executableValueWarnings = New-Object System.Collections.Generic.List[string]
     $allSelectedFeatures = @($selectedFeatures) + @($selectedUndoFeatures)
     if ($allSelectedFeatures.Count -eq 0) {
         $errors.Add('Backup must contain at least one feature ID in SelectedFeatures or SelectedUndoFeatures.')
     }
     else {
         try {
-            $allowListValidationErrors = @(Test-RegistryBackupMatchesSelectedFeatures -SelectedFeatureIds @($selectedFeatures) -SelectedUndoFeatureIds @($selectedUndoFeatures) -Target $normalizedTarget -RegistryKeys @($normalizedKeys))
+            $allowListValidationErrors = @(Test-RegistryBackupMatchesSelectedFeatures -SelectedFeatureIds @($selectedFeatures) -SelectedUndoFeatureIds @($selectedUndoFeatures) -Target $normalizedTarget -RegistryKeys @($normalizedKeys) -ExecutableValueWarnings $executableValueWarnings)
             foreach ($allowListValidationError in $allowListValidationErrors) {
                 $errors.Add([string]$allowListValidationError)
+            }
+
+            if ($errors.Count -eq 0) {
+                $planErrors = New-Object System.Collections.Generic.List[string]
+                $planMap = Get-RegistryBackupAllowListPlanMap -SelectedFeatureIds @($selectedFeatures) -SelectedUndoFeatureIds @($selectedUndoFeatures) -Target $normalizedTarget -Errors $planErrors
+                Set-RegistrySnapshotDeleteScope -RegistryKeys @($normalizedKeys) -PlanMap $planMap
             }
         }
         catch {
@@ -168,6 +181,11 @@ function Normalize-RegistryBackup {
         SelectedFeatures = @($selectedFeatures)
         SelectedUndoFeatures = @($selectedUndoFeatures)
         RegistryKeys = @($normalizedKeys)
+        # Values that can start a program and differ from what Winnow writes. The
+        # restore refuses them unless the user confirmed them (ExecutableValuesConfirmed)
+        # or the backup came from this run's memory (TrustExecutableValues).
+        UntrustedExecutableValues = @(if ($TrustExecutableValues) { } else { $executableValueWarnings.ToArray() })
+        ExecutableValuesConfirmed = [bool]$TrustExecutableValues
     }
 }
 
@@ -195,6 +213,11 @@ function Restore-RegistryBackupState {
     )
 
     $friendlyTarget = GetFriendlyRegistryBackupTarget -Target ([string]$Backup.Target)
+
+    $untrustedValues = @($Backup.UntrustedExecutableValues | Where-Object { $_ })
+    if ($untrustedValues.Count -gt 0 -and -not $Backup.ExecutableValuesConfirmed) {
+        throw "The backup sets $($untrustedValues.Count) registry value(s) that can start a program and do not match what Winnow writes: $($untrustedValues -join '; '). Restore was not started."
+    }
 
     if ($script:Params.ContainsKey("WhatIf")) {
         Write-Host "[WhatIf] Restore registry backup for $friendlyTarget" -ForegroundColor Cyan

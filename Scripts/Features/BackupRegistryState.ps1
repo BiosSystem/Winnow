@@ -41,6 +41,10 @@ function New-RegistrySettingsBackup {
         throw "Failed to save registry backup to '$backupFilePath'"
     }
 
+    # Automatic rollback restores from this copy, not from the file: the Backups
+    # folder is writable without elevation, and the restore runs elevated.
+    $script:RunRegistryBackupPayload = $backupConfig
+
     Write-Host "Backup successfully created: $backupFilePath"
     Write-Host ""
 

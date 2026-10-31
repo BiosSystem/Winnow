@@ -320,6 +320,17 @@ function Show-RestoreBackupDialog {
         try {
             $selectedBackup = Load-RegistryBackupFromFile -FilePath $openDialog.FileName
 
+            $untrustedValues = @($selectedBackup.UntrustedExecutableValues | Where-Object { $_ })
+            if ($untrustedValues.Count -gt 0) {
+                $valueList = ($untrustedValues | ForEach-Object { "- $_" }) -join "`n"
+                $confirmMessage = "This backup sets registry values that Windows uses to start programs, and they differ from what Winnow writes:`n`n$valueList`n`nThey may be the settings this PC had before Winnow changed them, or the file may have been edited. Restore them only if you recognise every program listed. Continue?"
+                if ((Show-MessageBox -Owner $window -Title 'Check Backup Contents' -Message $confirmMessage -Button 'YesNo' -Icon 'Warning') -ne 'Yes') {
+                    Write-Host 'Restore canceled: the backup sets unrecognised program-start values.'
+                    return
+                }
+                $selectedBackup.ExecutableValuesConfirmed = $true
+            }
+
             if (-not (& $showRegistryOverview -SelectedBackup $selectedBackup -SelectedBackupFilePath $openDialog.FileName)) {
                 return
             }

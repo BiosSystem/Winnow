@@ -46,7 +46,12 @@ function Restore-RegistryKeySnapshot {
     }
 
     if (-not $Snapshot.Exists) {
-        Remove-RegistrySubKeyTreeIfExists -RootKey $rootKey -SubKeyPath $subKeyPath
+        if ($Snapshot.PSObject.Properties['DeleteScope'] -and $Snapshot.DeleteScope -eq 'Values') {
+            Remove-RegistrySnapshotValues -RootKey $rootKey -SubKeyPath $subKeyPath -ValueNames @($Snapshot.DeleteValueNames)
+        }
+        else {
+            Remove-RegistrySubKeyTreeIfExists -RootKey $rootKey -SubKeyPath $subKeyPath
+        }
         return
     }
 
@@ -220,5 +225,43 @@ function Remove-RegistrySubKeyTreeIfExists {
     if ($existing) {
         $existing.Close()
         $RootKey.DeleteSubKeyTree($SubKeyPath, $false)
+    }
+}
+
+<#
+    .SYNOPSIS
+        Restores "key did not exist" for a key that features only write values in.
+
+    .DESCRIPTION
+        Deletes the given values, then the key itself only when nothing else is left
+        in it. Anything another program or the user put in the key stays.
+#>
+function Remove-RegistrySnapshotValues {
+    param(
+        [Parameter(Mandatory)]
+        [Microsoft.Win32.RegistryKey]$RootKey,
+        [Parameter(Mandatory)]
+        [string]$SubKeyPath,
+        [AllowEmptyCollection()]
+        [string[]]$ValueNames = @()
+    )
+
+    $key = $RootKey.OpenSubKey($SubKeyPath, $true)
+    if (-not $key) {
+        return
+    }
+
+    try {
+        foreach ($valueName in @($ValueNames)) {
+            $key.DeleteValue([string]$valueName, $false)
+        }
+        $isEmpty = ($key.ValueCount -eq 0) -and ($key.SubKeyCount -eq 0)
+    }
+    finally {
+        $key.Close()
+    }
+
+    if ($isEmpty) {
+        $RootKey.DeleteSubKey($SubKeyPath, $false)
     }
 }
