@@ -4,14 +4,76 @@
 
 - Upstream repository: `Raphire/Win11Debloat`
 - Upstream branch: `master`
-- Reviewed commit: `bcf4471` (upstream `master` head at review time)
-- Reviewed date: 2026-10-17
-- Last re-checked: 2026-10-17 (after the 4.4.0 release; upstream `master` still `bcf4471`)
-- Previous baseline: `3202466` (2026-09-12)
-- Winnow release line: `4.4.0`
+- Reviewed commit: `5d88bfe` (upstream `master` head at review time, upstream release 2026.10.30)
+- Reviewed date: 2026-10-31
+- Last re-checked: 2026-10-31
+- Previous baseline: `bcf4471` (2026-10-17)
+- Winnow release line: `4.4.4` (changes from this review are unreleased)
 - Upstream changelog review: July 11 2026 upstream release (dropped CustomAppsList format, retired legacy CLI app removal, fixed Copilot removal, dropped sunset apps)
 
 ## Upstream Review Log
+
+### 2026-10-31 review: `bcf4471` to `5d88bfe`
+
+Forty-two upstream commits (upstream release 2026.10.30) and nine open pull requests. About
+half are translations (de-DE, es-ES, fr-FR, ko-KR, ru-RU, tr-TR, zh-TW GUI packs) and app
+name/description rewording, which Winnow does not share: Winnow keeps app names in
+Config/Apps.json and ships en-US and es-ES catalogues of its own. Every other commit was
+checked against Winnow's code:
+
+Ported, each as its own issue and pull request:
+
+- `08b6ddd` RunOnce command length (#866): Winnow had the same bug, and worse than it looked.
+  Every app in the catalog produced a 262 to 366 character `powershell.exe -EncodedCommand`
+  RunOnce value, over the 260 characters Windows runs, so no deferred, `-User` or `-Sysprep`
+  winget removal ever ran. Winnow #132/#133.
+- `039ef80` backup validation (#849): Winnow's restore code has diverged, so the fix is
+  Winnow's own: Boolean `Exists`, "did not exist" limited to the feature's values for keys a
+  feature only writes values in, no sub-keys under such keys, program-start values checked
+  against Winnow's .reg data (same detection patterns as upstream) or confirmed by the user,
+  rollback from memory. Winnow #134/#135.
+- `04a17ad` launcher SHA-256 (#831) and open PR #836 (random run folder): Winnow goes further.
+  `Get.ps1` verifies the release zip against GitHub's published asset digest, and the elevated
+  step runs from an admin-only folder under `%SystemRoot%\Temp` after re-checking the hash, which
+  closes the window #836 says it leaves open. The standalone build moved there too. User data
+  moved to `%LOCALAPPDATA%\Winnow` (upstream's #829 and `a33e3ad` fallback). Winnow #136/#137.
+- `7383483` build check for command-line switches (#832), `94dd603` config booleans (#833),
+  open PR #868 common parameters, `97f3f80` UTF-8 reads (#844): Winnow #138/#139.
+- `0eec316` Drag Tray removal (#850): retired in place instead of deleted, because Winnow's
+  restore rejects a backup that names an unknown feature. `15071e8` and `4dc7a21`: 23 new
+  removable apps. The OEM comparison also found Winnow's MyASUS and Armoury Crate entries used
+  package names that match nothing installed. Winnow #140/#141.
+- Open PR #837 (restore continues after a failing key): Winnow #142/#143.
+
+Not ported:
+
+- `270db49` "Disable driver updates" (#870): Winnow already has `DisableWUDriverSearch` with the
+  documented `ExcludeWUDriversInQualityUpdate` policy. Upstream also writes
+  `DriverSearching\SearchOrderConfig = 3` and `UpdatePolicy\PolicyState\ExcludeWUDrivers`;
+  3 is not a documented SearchOrderConfig value and PolicyState is Windows' own policy
+  cache, so neither was copied.
+- `a0bab0e` notifications setting moved to System (#871): Winnow has no such feature.
+- `a2d63c7` ignore 0x80070002 on Windows 10 (#835): Winnow decides removal success by checking
+  that the package is gone afterwards, so the error was only noise, not a false failure.
+- `74648cb` ComboBox popup with a scrollbar (#865), `a6c0084` checkbox wrapping, `3382cf0`
+  column width, `52982da` Home tab height: Winnow fixed its own clipping in #112/#115/#119 and
+  guards it with Test-LocalizedLayout; the popup scrollbar case is not reachable with Winnow's
+  short dropdowns.
+- `9f192bd` release preparation workflow, `e845bab` Dependabot and PSScriptAnalyzer, `7d9777d`
+  checkout bump, test clean-ups: Winnow has its own release workflow and Dependabot set-up.
+- Upstream `XP9CXNGPPJ97XX` Copilot entry: Winnow removes Copilot through `Microsoft.Copilot`,
+  and `DisableCopilot` already tries both ids.
+- Open PRs #847 (state refresh caching), #859/#860 (translation key reports), #770/#776
+  (zh-CN, pl-PL), #777 (USB preparation presets): not applicable or new scope.
+
+Windows currency (checked 2026-10-31): the WindowsAI Policy CSP page (ms.date 2026-10-14)
+now marks `TurnOffWindowsCopilot` deprecated with no replacement. Winnow still sets it, which
+is harmless, and `DisableCopilot` also removes the Copilot app. The newer agent policies
+(AgentConnectorAccessPolicy, ConfigureAgentConnectors, DisableSettingsAgent,
+DisableRecallDataProviders and others) are Insider-only and mostly Enterprise/Education;
+`RemoveMicrosoftCopilotApp` has no documented registry mapping. No AI policy keys added. The
+October 2026 preview update (KB5127936, builds 26200.9818 / 26300.9818) adds a setting to remap
+the Copilot key and File Explorer context-menu customisation, with no new policy keys.
 
 ### 2026-10-17 review: `3202466` to `bcf4471`
 
